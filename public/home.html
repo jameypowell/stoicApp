@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stoic Fitness | Home</title>
+  <link rel="icon" type="image/png" href="/images/favicon_white.png">
+  <link rel="apple-touch-icon" href="/images/favicon_white.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --black: #0a0a0a;
+      --gold: #d4af37;
+      --gray-100: #f5f5f5;
+      --gray-800: #262626;
+      --white: #ffffff;
+      --ribbon-height: 40px;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--black);
+      color: var(--white);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    img { max-width: 100%; height: auto; display: block; }
+    a { color: inherit; text-decoration: none; }
+
+    /* News ribbon */
+    .news-ribbon {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 101;
+      background: var(--gold);
+      color: var(--black);
+      min-height: var(--ribbon-height);
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      font-size: 0.8125rem;
+      font-weight: 600;
+    }
+    .news-ribbon-track {
+      display: inline-flex;
+      flex-direction: row;
+      flex-wrap: nowrap;
+      animation: news-marquee 16s linear infinite;
+      white-space: nowrap;
+    }
+    .news-ribbon-track span {
+      display: inline-block;
+      flex-shrink: 0;
+      padding: 0 3rem;
+      white-space: nowrap;
+    }
+    .news-ribbon a { text-decoration: underline; }
+    @keyframes news-marquee {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* Header */
+    .header {
+      position: fixed;
+      top: var(--ribbon-height);
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 1rem 1.5rem;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
+      transition: background 0.3s;
+    }
+    .header.scrolled { background: rgba(0,0,0,0.95); }
+    .nav {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .logo {
+      height: 56px;
+      width: auto;
+      object-fit: contain;
+    }
+    .cta-nav {
+      padding: 0.5rem 1rem;
+      border: 2px solid var(--gold);
+      color: var(--gold);
+      font-weight: 600;
+      font-size: 0.875rem;
+      border-radius: 6px;
+      transition: background 0.2s, color 0.2s;
+    }
+    .cta-nav:hover, .cta-nav:focus { background: var(--gold); color: var(--black); }
+
+    /* Hero */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 8rem 1.5rem 4rem;
+      background: linear-gradient(180deg, var(--black) 0%, var(--gray-800) 100%);
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url('/images/mainpic.jpeg') center/cover no-repeat;
+      opacity: 0.15;
+      pointer-events: none;
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 600px; }
+    .hero h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3rem, 12vw, 5.5rem);
+      letter-spacing: 0.02em;
+      line-height: 1;
+      margin-bottom: 1rem;
+    }
+    .hero .accent { color: var(--gold); }
+    .hero p {
+      font-size: 1.125rem;
+      color: rgba(255,255,255,0.85);
+      margin-bottom: 2rem;
+    }
+    .hero-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      min-width: 200px;
+      padding: 0 1.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--gold);
+      color: var(--black);
+      border: none;
+    }
+    .btn-primary:hover { box-shadow: 0 4px 20px rgba(212,175,55,0.4); }
+    .btn-secondary {
+      background: transparent;
+      color: var(--white);
+      border: 2px solid var(--white);
+    }
+    .btn:disabled,
+    .btn[disabled] {
+      opacity: 0.55;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    /* Hero-specific Learn More button */
+    #heroLearnMoreBtn {
+      background: transparent;
+      color: var(--gold);
+      border-color: var(--gold);
+    }
+    #heroLearnMoreBtn:hover {
+      background: var(--gold);
+      color: var(--black);
+      box-shadow: 0 4px 20px rgba(212,175,55,0.4);
+    }
+
+    .learn-more-panel {
+      display: none;
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(212,175,55,0.35);
+      border-radius: 12px;
+      max-width: 560px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .learn-more-panel.visible { display: block; }
+    .learn-more-panel h3 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem;
+      color: var(--gold);
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+    .learn-more-list { list-style: none; padding: 0; margin: 0; }
+    .learn-more-list li {
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.9375rem;
+      color: rgba(255,255,255,0.9);
+      line-height: 1.4;
+    }
+    .learn-more-list li:last-child { border-bottom: none; }
+    .learn-more-list strong { color: var(--white); }
+    .learn-more-gym-hours { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,0.1); }
+    .learn-more-day { margin-bottom: 1rem; }
+    .learn-more-day:last-child { margin-bottom: 0; }
+    .learn-more-day h4 { font-size: 0.9375rem; color: var(--gold); margin-bottom: 0.5rem; font-weight: 600; }
+    .learn-more-slots { list-style: none; padding: 0; margin: 0; }
+    .learn-more-slot { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; font-size: 0.875rem; color: rgba(255,255,255,0.9); }
+    .learn-more-time { min-width: 2.5rem; }
+    .learn-more-pill {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: rgba(212,175,55,0.25);
+      border: 1px solid rgba(212,175,55,0.5);
+      color: var(--gold);
+      font-size: 0.8125rem;
+      font-weight: 600;
+    }
+    .learn-more-pill-evening {
+      background: rgba(248, 113, 113, 0.2);
+      border-color: rgba(248, 113, 113, 0.8);
+      color: #fee2e2;
+    }
+    .learn-more-schedule-note {
+      margin-top: 1.25rem;
+      padding: 0.75rem 1rem;
+      background: rgba(0,0,0,0.25);
+      border-radius: 8px;
+      font-size: 0.8125rem;
+      color: rgba(255,255,255,0.85);
+      line-height: 1.5;
+    }
+    .learn-more-schedule-note strong { color: var(--gold); }
+
+    /* Features strip */
+    .features {
+      padding: 4rem 1.5rem;
+      background: var(--gray-800);
+    }
+    .features h2 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2rem, 6vw, 3rem);
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .features-grid {
+      max-width: 900px;
+      margin: 0 auto;
+      display: grid;
+      gap: 1.5rem;
+    }
+    .feature-card {
+      background: var(--black);
+      padding: 1.5rem;
+      border-radius: 12px;
+      border-left: 4px solid var(--gold);
+    }
+    .feature-card h3 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .feature-card p { color: rgba(255,255,255,0.8); font-size: 0.9375rem; }
+
+    /* Join options section */
+    .join-options {
+      padding: 4rem 1.5rem;
+      background: var(--black);
+      border-top: 1px solid rgba(212,175,55,0.2);
+    }
+    .join-options.hidden { display: none; }
+    .join-options-inner {
+      max-width: 980px;
+      margin: 0 auto;
+    }
+    .join-options h2 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2rem, 6vw, 3rem);
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+    .join-options-subtitle {
+      text-align: center;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+    }
+    .join-options-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: 1fr;
+    }
+    .join-option-card {
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+    }
+    .join-option-card h3 {
+      font-size: 1.1rem;
+      margin: 0;
+    }
+    .join-option-price {
+      color: var(--gold);
+      font-weight: 700;
+      font-size: 1rem;
+    }
+    .join-option-copy {
+      color: rgba(255,255,255,0.82);
+      font-size: 0.875rem;
+      line-height: 1.5;
+      min-height: 2.7em;
+    }
+    .join-option-btn {
+      margin-top: auto;
+      align-self: flex-start;
+      min-height: 42px;
+      min-width: 180px;
+      border-radius: 8px;
+      border: none;
+      background: var(--gold);
+      color: var(--black);
+      font-weight: 700;
+      font-size: 0.9rem;
+      padding: 0 1rem;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .join-option-btn:hover { box-shadow: 0 4px 20px rgba(212,175,55,0.35); }
+    .join-option-btn:active { transform: scale(0.98); }
+
+    /* Generic modal styles for home page (Stripe drop-in) */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 2000;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      overflow-y: auto;
+      padding: 1.5rem;
+      box-sizing: border-box;
+    }
+    .modal-content {
+      background: #111827;
+      color: var(--white);
+      margin: 6vh auto 2rem auto;
+      max-width: 480px;
+      width: 100%;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+      box-sizing: border-box;
+      position: relative;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .modal-content-wide { max-width: 560px; }
+    .modal-content h2 {
+      margin-top: 0;
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--gold);
+      text-align: center;
+    }
+    .modal-content .close {
+      position: absolute;
+      right: 0.75rem;
+      top: 0.5rem;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #6b7280;
+    }
+    #homePaymentElement {
+      margin-bottom: 1rem;
+    }
+    #homePaymentError {
+      color: #b91c1c;
+      font-size: 0.875rem;
+    }
+
+    /* Just Visiting (drop-in) section - home page styling */
+    .dropin-section {
+      padding: 3rem 1.5rem;
+      background: var(--gray-800);
+      margin-top: 0;
+    }
+    /* Slightly tighter spacing below free trial section */
+    #free-trial.dropin-section {
+      padding-bottom: 1.5rem;
+    }
+    /* Slightly tighter spacing above Just Visiting section */
+    #dropin.dropin-section {
+      padding-top: 1.5rem;
+    }
+    .dropin-section h2 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2rem, 6vw, 3rem);
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .dropin-inner {
+      max-width: 560px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .dropin-form { text-align: left; }
+    .dropin-intro {
+      padding: 1.25rem 1.5rem;
+      background: rgba(212, 175, 55, 0.2);
+      border: 1px solid var(--gold);
+      border-radius: 8px;
+      margin-bottom: 1.25rem;
+      font-size: 0.9375rem;
+      color: rgba(255,255,255,0.95);
+      line-height: 1.6;
+    }
+    .dropin-intro strong { color: var(--gold); }
+    .dropin-intro .dropin-proceed-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1rem;
+      min-height: 48px;
+      padding: 0 1.5rem;
+      background: var(--gold);
+      color: var(--black);
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    /* Center the free trial button under its text */
+    #free-trial .dropin-intro .dropin-proceed-btn {
+      display: block;
+      margin: 1rem auto 0;
+    }
+    .dropin-intro .dropin-proceed-btn:hover {
+      box-shadow: 0 4px 20px rgba(212,175,55,0.4);
+    }
+    .dropin-intro .dropin-proceed-btn:active { transform: scale(0.98); }
+    .dropin-step2 { display: none; }
+    .dropin-step2.visible { display: block; }
+    .dropin-section h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .dropin-section .waiver-intro {
+      font-size: 0.8125rem;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 1rem;
+    }
+    .dropin-waiver-box {
+      max-height: 140px;
+      overflow: hidden;
+      position: relative;
+      transition: max-height 0.4s ease;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      padding: 1.25rem;
+      background: var(--black);
+      font-size: 0.875rem;
+      line-height: 1.7;
+      color: rgba(255,255,255,0.85);
+      margin-bottom: 0.75rem;
+    }
+    .dropin-waiver-box.expanded { max-height: none; overflow: auto; }
+    .dropin-waiver-fade {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: linear-gradient(to bottom, transparent, var(--black) 100%);
+      pointer-events: none;
+      border-radius: 0 0 8px 8px;
+    }
+    .dropin-waiver-box.expanded .dropin-waiver-fade { display: none; }
+    .dropin-waiver-toggle {
+      background: transparent;
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      margin-bottom: 1.25rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    .dropin-waiver-toggle:hover { background: rgba(212, 175, 55, 0.2); }
+    .dropin-form label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 0.375rem;
+    }
+    .dropin-form input[type="text"],
+    .dropin-form input[type="email"],
+    .dropin-form input[type="tel"],
+    .dropin-form textarea {
+      width: 100%;
+      padding: 0.625rem 0.75rem;
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 6px;
+      font-size: 0.875rem;
+      background: var(--black);
+      color: var(--white);
+      margin-bottom: 1rem;
+    }
+    .dropin-form input::placeholder,
+    .dropin-form textarea::placeholder { color: rgba(255,255,255,0.4); }
+    .dropin-checkbox {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      cursor: pointer;
+    }
+    .dropin-checkbox input { margin-top: 0.25rem; accent-color: var(--gold); }
+    .dropin-must-expand {
+      display: none;
+      margin-bottom: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      background: rgba(220, 38, 38, 0.2);
+      border: 1px solid rgba(220, 38, 38, 0.5);
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      color: #fca5a5;
+    }
+    /* Center primary action in free trial modal */
+    #homeFreeTrialSubmit {
+      display: block;
+      margin: 1.25rem auto 0;
+    }
+    .dropin-email-err { display: none; color: #fca5a5; font-size: 0.8125rem; font-weight: 400; }
+    .dropin-fee-box {
+      padding: 1.25rem;
+      background: rgba(212, 175, 55, 0.12);
+      border: 1px solid rgba(212, 175, 55, 0.35);
+      border-radius: 8px;
+      margin: 1.25rem 0;
+      text-align: center;
+    }
+    .dropin-fee-box p { margin: 0 0 0.5rem 0; font-size: 0.875rem; }
+    .dropin-fee-box p:last-of-type { margin-bottom: 0; }
+    .dropin-fee-box .dropin-pay-btn { margin-top: 1rem; }
+    .dropin-pay-btn {
+      background: var(--gold);
+      color: var(--black);
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .dropin-pay-btn:hover { box-shadow: 0 4px 20px rgba(212,175,55,0.4); }
+    .dropin-pay-btn:disabled {
+      background: #4b5563;
+      color: #9ca3af;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: rgba(255,255,255,0.6);
+      font-size: 0.875rem;
+    }
+    .footer a { text-decoration: underline; }
+
+    @media (min-width: 640px) {
+      .hero-btns { flex-direction: row; }
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .join-options-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (min-width: 768px) {
+      .features-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="news-ribbon">
+    <div class="news-ribbon-track">
+      <span>Your gym membership will be managed here soon. <a href="https://app.stoic-fit.com">Get the app</a> to stay connected.</span>
+      <span>Your gym membership will be managed here soon. <a href="https://app.stoic-fit.com">Get the app</a> to stay connected.</span>
+    </div>
+  </div>
+  <header class="header" id="header">
+    <nav class="nav">
+      <img src="/images/all_white_STOIC_long.png" alt="Stoic Fitness" class="logo" onerror="this.outerHTML='<span style=\'font-family:Bebas Neue;font-size:1.5rem\'>STOIC</span>'">
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-content">
+        <h1>FUNCTIONAL <span class="accent">FITNESS</span>. FUNCTIONAL <span class="accent">YOU</span>.</h1>
+        <p>Functional fitness. Train with purpose. Stronger together.</p>
+        <p>In the gym or on the go, it's ALL here for you! Functional fitness training, structured strength programs with built-in progress tracking. Tailored nutrition plans, core finishers, and body composition tracking — all designed for measurable growth.</p>
+        <div class="hero-btns">
+          <button type="button" class="btn btn-primary" id="heroReadyJoinBtn">I'm ready to join</button>
+          <a href="/" class="btn btn-secondary" id="homeLoginBtn">Log in</a>
+          <button type="button" class="btn btn-secondary" id="heroLearnMoreBtn">Learn More</button>
+        </div>
+        <div class="learn-more-panel" id="learnMorePanel">
+          <h3>Membership &amp; Pricing</h3>
+          <ul class="learn-more-list">
+            <li><strong>Unlimited gym access</strong> — 24/7 access to all equipment and facilities. <strong>$65/mo</strong></li>
+            <li><strong>Immediate family</strong> — Discounted <strong>$50/mo</strong> for immediate family members</li>
+            <li><strong>Expecting &amp; recovering mothers</strong> — Special rate <strong>$30/mo</strong></li>
+            <li><strong>Group discounts</strong> — <strong>15% off</strong> when 5 or more members join together</li>
+            <li><strong>Instructor-led classes</strong> — Instructors demo every exercise before class and are there to help during class</li>
+          </ul>
+          <div class="learn-more-gym-hours">
+            <h3>Gym Hours</h3>
+            <div class="learn-more-day">
+              <h4>Monday</h4>
+              <ul class="learn-more-slots">
+                <li class="learn-more-slot"><span class="learn-more-time">5AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">6AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">7AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">8AM</span> <span class="learn-more-pill">Open Gym*</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">9AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+              </ul>
+            </div>
+            <div class="learn-more-day">
+              <h4>Tuesday</h4>
+              <ul class="learn-more-slots">
+                <li class="learn-more-slot"><span class="learn-more-time">5AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">6AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">7AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">8AM</span> <span class="learn-more-pill">Open Gym*</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">9AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">7PM</span> <span class="learn-more-pill learn-more-pill-evening">Yoga</span></li>
+              </ul>
+            </div>
+            <div class="learn-more-day">
+              <h4>Wednesday</h4>
+              <ul class="learn-more-slots">
+                <li class="learn-more-slot"><span class="learn-more-time">5AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">6AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">7AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">8AM</span> <span class="learn-more-pill">Open Gym*</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">9AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+              </ul>
+            </div>
+            <div class="learn-more-day">
+              <h4>Thursday</h4>
+              <ul class="learn-more-slots">
+                <li class="learn-more-slot"><span class="learn-more-time">5AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">6AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">7AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">8AM</span> <span class="learn-more-pill">Open Gym*</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">9AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">6:30PM</span> <span class="learn-more-pill learn-more-pill-evening">Self Defense</span></li>
+              </ul>
+            </div>
+            <div class="learn-more-day">
+              <h4>Friday</h4>
+              <ul class="learn-more-slots">
+                <li class="learn-more-slot"><span class="learn-more-time">5AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">6AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">7AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">8AM</span> <span class="learn-more-pill">Open Gym*</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">9AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+              </ul>
+            </div>
+            <div class="learn-more-day">
+              <h4>Saturday</h4>
+              <ul class="learn-more-slots">
+                <li class="learn-more-slot"><span class="learn-more-time">7AM</span> <span class="learn-more-pill">Functional Fitness</span></li>
+                <li class="learn-more-slot"><span class="learn-more-time">8AM</span> <span class="learn-more-pill">High Fit</span></li>
+              </ul>
+            </div>
+            <div class="learn-more-day">
+              <h4>Sunday</h4>
+              <ul class="learn-more-slots">
+                <li class="learn-more-slot"><span class="learn-more-time">—</span> <span class="learn-more-pill">No classes</span></li>
+              </ul>
+            </div>
+            <div class="learn-more-schedule-note">
+              <strong>8:00AM (Mon–Fri) note:</strong> These sessions are open gym and not led by an instructor; the workout and equipment are set up and ready for self-guided use.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="join-options hidden" id="join-options">
+      <div class="join-options-inner">
+        <h2>CHOOSE YOUR MEMBERSHIP</h2>
+        <p class="join-options-subtitle">Pick a membership option, then sign in to complete your new member signup workflow.</p>
+        <div class="join-options-grid">
+          <article class="join-option-card">
+            <h3>Standard</h3>
+            <div class="join-option-price">$65/month</div>
+            <p class="join-option-copy">Full gym access and classes for one member.</p>
+            <button type="button" class="join-option-btn" data-membership-type="STANDARD">Select Standard</button>
+          </article>
+          <article class="join-option-card">
+            <h3>Immediate Family</h3>
+            <div class="join-option-price">$50/month</div>
+            <p class="join-option-copy">Discounted rate for immediate family members linked to a household.</p>
+            <button type="button" class="join-option-btn" data-membership-type="IMMEDIATE_FAMILY">Select Immediate Family</button>
+          </article>
+          <article class="join-option-card">
+            <h3>Expecting or Recovering Mother</h3>
+            <div class="join-option-price">$30/month</div>
+            <p class="join-option-copy">Special membership option for expecting or recovering mothers.</p>
+            <button type="button" class="join-option-btn" data-membership-type="EXPECTING_RECOVERING">Select Expecting/Recovering</button>
+          </article>
+          <article class="join-option-card">
+            <h3>Full Family</h3>
+            <div class="join-option-price">$185/month</div>
+            <p class="join-option-copy">Household-based plan for full family access and billing.</p>
+            <button type="button" class="join-option-btn" data-membership-type="FULL_FAMILY">Select Full Family</button>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="dropin-section" id="free-trial">
+      <h2>SIGN UP FOR FREE TRIAL</h2>
+      <div class="dropin-inner">
+        <div class="dropin-intro">
+          <strong>Free Trial:</strong> Gives you free access to the gym facility and all classes for the 7-day period.
+          <button type="button" class="dropin-proceed-btn" id="homeFreeTrialBtn">Start my free trial</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="dropin-section" id="dropin">
+      <h2>JUST VISITING FOR THE DAY?</h2>
+      <div class="dropin-inner">
+        <div class="dropin-intro">
+          <strong>Drop-in fee:</strong> The $5.00 drop-in fee is for one-day use only. It gives you access to the gym facility and all classes for that day only.
+          <button type="button" class="dropin-proceed-btn" id="homeDropInProceed">Proceed to waiver &amp; payment</button>
+        </div>
+        <div class="dropin-step2" id="homeDropInStep2">
+        <h3>Waiver and Release of Liability</h3>
+        <p class="waiver-intro">Please read and accept the waiver below to complete your drop-in visit.</p>
+        <div class="dropin-waiver-box" id="homeWaiverBox">
+          <div id="homeWaiverContent">
+            <p style="margin: 0 0 1rem 0;">By signing this Waiver and Release of Liability, I acknowledge and agree to the following terms as a participant or visitor at Stoic Fitness.</p>
+            <p style="margin: 0 0 1rem 0;"><strong>Assumption of Risk:</strong> I understand that participation in fitness activities, exercise programs, training sessions, classes, and use of gym equipment involves inherent risks, including but not limited to muscle strains, sprains, falls, equipment failure, overexertion, illness, serious injury, or death. I voluntarily choose to participate and fully assume all risks associated with my participation, whether known or unknown, foreseeable or unforeseeable.</p>
+            <p style="margin: 0 0 1rem 0;"><strong>Medical Responsibility:</strong> I represent that I am physically and medically able to participate in fitness activities. I acknowledge that Stoic Fitness does not provide medical advice, diagnosis, or treatment. I am solely responsible for monitoring my physical condition and for stopping exercise if I experience pain, discomfort, dizziness, or other concerning symptoms.</p>
+            <p style="margin: 0 0 1rem 0;"><strong>Release of Liability:</strong> To the fullest extent permitted by law, I hereby waive, release, and discharge Stoic Fitness, its owners, employees, instructors, contractors, volunteers, and affiliates (collectively, the "Released Parties") from any and all claims, demands, actions, damages, liabilities, costs, or expenses arising out of or related to my participation in any activities at Stoic Fitness, including but not limited to claims based on negligence, premises liability, or equipment use.</p>
+            <p style="margin: 0 0 1rem 0;"><strong>Children at the Gym:</strong> I acknowledge that Stoic Fitness does not provide childcare. Children must be supervised by a parent/guardian at all times and kept away from workout areas. I am solely responsible for the safety of any child I bring into the facility.</p>
+            <p style="margin: 0 0 1rem 0;"><strong>Equipment &amp; Safety:</strong> I agree to use all equipment properly and as intended. I understand that improper use may result in injury. I accept full responsibility for my actions while using Stoic Fitness facilities and equipment.</p>
+            <p style="margin: 0 0 1rem 0;"><strong>Conduct &amp; Etiquette:</strong> I agree to wear appropriate athletic clothing and footwear, use respectful language, and follow all posted rules and instructor guidance. Stoic Fitness reserves the right to suspend or terminate access for unsafe or inappropriate behavior, without refund.</p>
+            <p style="margin: 0 0 1rem 0;"><strong>Insurance:</strong> I acknowledge that I am responsible for maintaining my own health, accident, and liability insurance coverage. Stoic Fitness does not provide insurance coverage for participants or guests.</p>
+            <p style="margin: 0 0 1rem 0;"><strong>Severability:</strong> If any portion of this Waiver is found to be invalid or unenforceable, the remaining provisions shall remain in full force and effect.</p>
+            <p style="margin: 0;">By signing below, I confirm that I have read and fully understand this Waiver, voluntarily agree to its terms, and understand that I am giving up certain legal rights.</p>
+          </div>
+          <div class="dropin-waiver-fade" id="homeWaiverFade"></div>
+        </div>
+        <button type="button" class="dropin-waiver-toggle" id="homeWaiverToggle" aria-expanded="false">
+          <span id="homeWaiverToggleText">Expand to read full waiver</span>
+          <svg id="homeWaiverChevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div class="dropin-form">
+          <label class="dropin-checkbox" id="homeWaiverLabel">
+            <input type="checkbox" id="homeWaiverAccept">
+            <span>I have read and agree to the Waiver and Release of Liability above.</span>
+          </label>
+          <div class="dropin-must-expand" id="homeMustExpand">You must expand and read the entire waiver before you can accept it.</div>
+          <label for="homeWaiverSignature">Type your full name to acknowledge</label>
+          <input type="text" id="homeWaiverSignature" placeholder="Enter your full name">
+          <label for="homeWaiverEmail">Email address <span class="dropin-email-err" id="homeEmailError"></span></label>
+          <input type="email" id="homeWaiverEmail" placeholder="Enter your email">
+        </div>
+        <div class="dropin-fee-box">
+          <p><strong>One-Time Drop-In Fee</strong></p>
+          <p>Pay $5.00 for a single day pass. Access to the gym and classes for that day only.</p>
+          <button type="button" class="dropin-pay-btn" id="homeDropInPayBtn" disabled>Pay $5.00</button>
+        </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Drop-in Payment Modal (Stripe) -->
+    <div id="homePaymentModal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <span class="close" onclick="document.getElementById('homePaymentModal').style.display='none'">×</span>
+        <h2>Complete Drop-In Payment ($5.00)</h2>
+        <div id="homePaymentElement">
+          <!-- Stripe Elements will mount here -->
+        </div>
+        <button id="homePayButton" class="btn btn-primary" type="button">Pay $5.00</button>
+        <div id="homePaymentError" class="error-message" style="display: none; margin-top: 0.75rem;"></div>
+      </div>
+    </div>
+
+    <!-- Free Trial Signup Modal -->
+    <div id="homeFreeTrialModal" class="modal" style="display: none;">
+      <div class="modal-content modal-content-wide">
+        <span class="close" id="homeFreeTrialModalClose">×</span>
+        <h2 id="homeFreeTrialHeading">Enjoy Your Free Trial</h2>
+        <div id="homeFreeTrialFormWrap">
+          <h3>Waiver and Release of Liability</h3>
+          <p class="waiver-intro">Please read and accept the waiver below to sign up for your free trial.</p>
+          <div class="dropin-waiver-box" id="homeFreeTrialWaiverBox">
+            <div id="homeFreeTrialWaiverContent">
+              <p style="margin: 0 0 1rem 0;">By signing this Waiver and Release of Liability, I acknowledge and agree to the following terms as a participant or visitor at Stoic Fitness.</p>
+              <p style="margin: 0 0 1rem 0;"><strong>Assumption of Risk:</strong> I understand that participation in fitness activities, exercise programs, training sessions, classes, and use of gym equipment involves inherent risks, including but not limited to muscle strains, sprains, falls, equipment failure, overexertion, illness, serious injury, or death. I voluntarily choose to participate and fully assume all risks associated with my participation, whether known or unknown, foreseeable or unforeseeable.</p>
+              <p style="margin: 0 0 1rem 0;"><strong>Medical Responsibility:</strong> I represent that I am physically and medically able to participate in fitness activities. I acknowledge that Stoic Fitness does not provide medical advice, diagnosis, or treatment. I am solely responsible for monitoring my physical condition and for stopping exercise if I experience pain, discomfort, dizziness, or other concerning symptoms.</p>
+              <p style="margin: 0 0 1rem 0;"><strong>Release of Liability:</strong> To the fullest extent permitted by law, I hereby waive, release, and discharge Stoic Fitness, its owners, employees, instructors, contractors, volunteers, and affiliates (collectively, the "Released Parties") from any and all claims, demands, actions, damages, liabilities, costs, or expenses arising out of or related to my participation in any activities at Stoic Fitness, including but not limited to claims based on negligence, premises liability, or equipment use.</p>
+              <p style="margin: 0 0 1rem 0;"><strong>Children at the Gym:</strong> I acknowledge that Stoic Fitness does not provide childcare. Children must be supervised by a parent/guardian at all times and kept away from workout areas. I am solely responsible for the safety of any child I bring into the facility.</p>
+              <p style="margin: 0 0 1rem 0;"><strong>Equipment &amp; Safety:</strong> I agree to use all equipment properly and as intended. I understand that improper use may result in injury. I accept full responsibility for my actions while using Stoic Fitness facilities and equipment.</p>
+              <p style="margin: 0 0 1rem 0;"><strong>Conduct &amp; Etiquette:</strong> I agree to wear appropriate athletic clothing and footwear, use respectful language, and follow all posted rules and instructor guidance. Stoic Fitness reserves the right to suspend or terminate access for unsafe or inappropriate behavior, without refund.</p>
+              <p style="margin: 0 0 1rem 0;"><strong>Insurance:</strong> I acknowledge that I am responsible for maintaining my own health, accident, and liability insurance coverage. Stoic Fitness does not provide insurance coverage for participants or guests.</p>
+              <p style="margin: 0 0 1rem 0;"><strong>Severability:</strong> If any portion of this Waiver is found to be invalid or unenforceable, the remaining provisions shall remain in full force and effect.</p>
+              <p style="margin: 0;">By signing below, I confirm that I have read and fully understand this Waiver, voluntarily agree to its terms, and understand that I am giving up certain legal rights.</p>
+            </div>
+            <div class="dropin-waiver-fade" id="homeFreeTrialWaiverFade"></div>
+          </div>
+          <button type="button" class="dropin-waiver-toggle" id="homeFreeTrialWaiverToggle" aria-expanded="false">
+            <span id="homeFreeTrialWaiverToggleText">Expand to read full waiver</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 9l-7 7-7-7"></path></svg>
+          </button>
+          <div class="dropin-form">
+            <label class="dropin-checkbox" id="homeFreeTrialWaiverLabel">
+              <input type="checkbox" id="homeFreeTrialWaiverAccept">
+              <span>I have read and agree to the Waiver and Release of Liability above.</span>
+            </label>
+            <div class="dropin-must-expand" id="homeFreeTrialMustExpand">You must expand and read the entire waiver before you can accept it.</div>
+            <label for="homeFreeTrialFirstName">First name</label>
+            <input type="text" id="homeFreeTrialFirstName" placeholder="First name">
+            <label for="homeFreeTrialLastName">Last name</label>
+            <input type="text" id="homeFreeTrialLastName" placeholder="Last name">
+            <label for="homeFreeTrialEmail">Email address <span class="dropin-email-err" id="homeFreeTrialEmailError"></span></label>
+            <input type="email" id="homeFreeTrialEmail" placeholder="Enter your email">
+            <label for="homeFreeTrialPhone">Phone number</label>
+            <input type="tel" id="homeFreeTrialPhone" placeholder="Enter your phone number">
+            <label for="homeFreeTrialHowHeard">How did you hear about us?</label>
+            <textarea id="homeFreeTrialHowHeard" placeholder="Tell us how you heard about Stoic Fitness" rows="3" required></textarea>
+            <label for="homeFreeTrialQuestion">Any short question for us? <span style="font-weight: normal; color: #9ca3af;">(optional)</span></label>
+            <textarea id="homeFreeTrialQuestion" placeholder="Ask a quick question about classes, schedule, or anything else" rows="2"></textarea>
+          </div>
+          <div id="homeFreeTrialDateRange" class="waiver-intro" style="margin-top: 0.5rem;"></div>
+          <div id="homeFreeTrialError" class="error-message" style="display: none; margin-top: 0.75rem;"></div>
+          <button type="button" class="btn btn-primary" id="homeFreeTrialSubmit">Start my free trial</button>
+        </div>
+        <div id="homeFreeTrialSuccessWrap" style="display: none; text-align: center;">
+          <p id="homeFreeTrialSuccessMessage"></p>
+          <p class="waiver-intro" style="margin-top: 0.5rem;">
+            There are no sign ups for classes – just show up ready to work out. We hope you enjoy our classes and find a home here at Stoic Fitness.
+          </p>
+          <p class="waiver-intro" style="margin-top: 0.5rem;">
+            If you create an account and log in with the email that you signed up with, you can review your trial period date range anytime in the app.
+          </p>
+          <button type="button" class="btn btn-secondary" id="homeFreeTrialSuccessClose">Close</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>&copy; Stoic Fitness. <a href="https://app.stoic-fit.com">Open the app</a></p>
+  </footer>
+
+  <!-- Stripe for drop-in payments -->
+  <script src="https://js.stripe.com/v3/"></script>
+
+  <script>
+    window.addEventListener('scroll', () => {
+      document.getElementById('header').classList.toggle('scrolled', window.scrollY > 50);
+    });
+
+    (function() {
+      const learnMoreBtn = document.getElementById('heroLearnMoreBtn');
+      const learnMorePanel = document.getElementById('learnMorePanel');
+      if (learnMoreBtn && learnMorePanel) {
+        learnMoreBtn.addEventListener('click', function() {
+          learnMorePanel.classList.add('visible');
+          learnMorePanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+      }
+    })();
+
+    // Load banner settings from app API so home page matches app banner
+    (function() {
+      async function applyBanner() {
+        try {
+          const res = await fetch('/api/banner');
+          if (!res.ok) return;
+          const data = await res.json();
+          const msg = data.message || 'Your gym membership will be managed here soon.';
+          const bgKey = data.bg_key || 'yellow';
+          const textColor = data.text_color || 'black';
+          const banner = document.querySelector('.news-ribbon');
+          const spans = document.querySelectorAll('.news-ribbon-track span');
+          if (spans.length > 0) {
+            var safeMsg = msg; // Admin-controlled; treated as trusted
+            var html = safeMsg;
+            spans.forEach(function(el) {
+              el.innerHTML = html;
+            });
+          }
+          if (banner) {
+            var bgMap = {
+              yellow: '#d4af37',
+              red: '#b91c1c',
+              blue: '#1e3a8a',
+              white: '#f9fafb'
+            };
+            var textMap = {
+              black: '#000000',
+              white: '#ffffff'
+            };
+            var bg = bgMap[bgKey] || bgMap.yellow;
+            var fg = textMap[textColor] || textMap.black;
+            banner.style.backgroundColor = bg;
+            banner.style.color = fg;
+          }
+        } catch (e) {
+          console.warn('Failed to load banner settings for home:', e && e.message);
+        }
+      }
+      applyBanner();
+    })();
+
+    (function() {
+      const readyJoinBtn = document.getElementById('heroReadyJoinBtn');
+      const joinOptionsSection = document.getElementById('join-options');
+      if (readyJoinBtn && joinOptionsSection) {
+        readyJoinBtn.addEventListener('click', function() {
+          joinOptionsSection.classList.remove('hidden');
+          joinOptionsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+      const joinOptionButtons = document.querySelectorAll('.join-option-btn[data-membership-type]');
+      joinOptionButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          const type = String(btn.getAttribute('data-membership-type') || '').trim().toUpperCase();
+          if (!type) return;
+          const target = new URL('https://app.stoic-fit.com');
+          target.searchParams.set('open', 'join');
+          target.searchParams.set('membership_type', type);
+          window.location.href = target.toString();
+        });
+      });
+      const loginBtn = document.getElementById('homeLoginBtn');
+      if (loginBtn) {
+        const host = String(window.location.hostname || '').toLowerCase();
+        const isLocal =
+          host === 'localhost' ||
+          host === '127.0.0.1' ||
+          host === '0.0.0.0' ||
+          host.endsWith('.local');
+        // Dev: keep localhost flow. Prod/staging: always send to app domain.
+        loginBtn.setAttribute('href', isLocal ? (window.location.origin + '/') : 'https://app.stoic-fit.com/');
+      }
+    })();
+
+    (function() {
+      const API_BASE = '';
+      const step2 = document.getElementById('homeDropInStep2');
+      const proceedBtn = document.getElementById('homeDropInProceed');
+      const box = document.getElementById('homeWaiverBox');
+      const toggle = document.getElementById('homeWaiverToggle');
+      const toggleText = document.getElementById('homeWaiverToggleText');
+      const chevron = document.getElementById('homeWaiverChevron');
+      const fade = document.getElementById('homeWaiverFade');
+      const accept = document.getElementById('homeWaiverAccept');
+      const label = document.getElementById('homeWaiverLabel');
+      const mustExpand = document.getElementById('homeMustExpand');
+      const signature = document.getElementById('homeWaiverSignature');
+      const email = document.getElementById('homeWaiverEmail');
+      const emailError = document.getElementById('homeEmailError');
+      const payBtn = document.getElementById('homeDropInPayBtn');
+
+      // Stripe state for drop-in payments on the home page
+      let stripeDropIn = null;
+      let stripeDropInElements = null;
+
+      // Initialize Stripe for drop-in payments
+      (async function initStripeDropIn() {
+        try {
+          const res = await fetch('/api/stripe-key');
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.publishableKey) {
+            stripeDropIn = Stripe(data.publishableKey);
+          }
+        } catch (e) {
+          console.warn('Failed to initialize Stripe for drop-in:', e && e.message);
+        }
+      })();
+
+      let waiverExpanded = false;
+      let waiverHasBeenExpanded = false;
+
+      if (proceedBtn && step2) {
+        proceedBtn.addEventListener('click', function() {
+          step2.classList.add('visible');
+        });
+      }
+
+      function setPayBtnState() {
+        const ok = waiverHasBeenExpanded && accept.checked && (signature.value || '').trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email.value || '').trim());
+        payBtn.disabled = !ok;
+      }
+
+      if (toggle && box) {
+        toggle.addEventListener('click', function() {
+          waiverExpanded = !waiverExpanded;
+          if (waiverExpanded) waiverHasBeenExpanded = true;
+          box.classList.toggle('expanded', waiverExpanded);
+          toggleText.textContent = waiverExpanded ? 'Collapse waiver' : 'Expand to read full waiver';
+          chevron.style.transform = waiverExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+          toggle.setAttribute('aria-expanded', waiverExpanded ? 'true' : 'false');
+          if (waiverExpanded) mustExpand.style.display = 'none';
+          setPayBtnState();
+        });
+      }
+
+      // Require waiver to be expanded at least once before accepting
+      if (accept) {
+        accept.addEventListener('change', function() {
+          if (accept.checked && !waiverHasBeenExpanded) {
+            accept.checked = false;
+            mustExpand.style.display = 'block';
+          } else if (waiverHasBeenExpanded) {
+            mustExpand.style.display = 'none';
+          }
+          setPayBtnState();
+        });
+      }
+      if (signature) signature.addEventListener('input', setPayBtnState);
+      if (email) email.addEventListener('input', function() {
+        emailError.style.display = 'none';
+        setPayBtnState();
+      });
+
+      if (payBtn) {
+        payBtn.addEventListener('click', async function() {
+          const sig = (signature.value || '').trim();
+          const em = (email.value || '').trim();
+          if (!accept.checked || !waiverHasBeenExpanded) {
+            alert('Please read and accept the waiver to continue.');
+            return;
+          }
+          if (sig.length < 2) {
+            alert('Please enter your full name to acknowledge the waiver.');
+            signature.focus();
+            return;
+          }
+          if (!em) {
+            emailError.textContent = 'Please enter your email address.';
+            emailError.style.display = 'inline';
+            email.focus();
+            return;
+          }
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+            emailError.textContent = 'Please enter a valid email address.';
+            emailError.style.display = 'inline';
+            email.focus();
+            return;
+          }
+
+          if (!stripeDropIn) {
+            alert('Payment system is still loading. Please wait a moment and try again.');
+            return;
+          }
+
+          payBtn.disabled = true;
+          payBtn.textContent = 'Starting payment...';
+
+          try {
+            const res = await fetch('/api/gym-memberships/drop-in/create-payment-intent', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                email: em,
+                waiverSignature: sig
+              })
+            });
+
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.clientSecret) {
+              const msg = data && data.error ? data.error : 'Failed to start payment. Please try again.';
+              throw new Error(msg);
+            }
+
+            const dropInPaymentIntentId = data.paymentIntentId || null;
+
+            const modal = document.getElementById('homePaymentModal');
+            const elementContainer = document.getElementById('homePaymentElement');
+            const errorDiv = document.getElementById('homePaymentError');
+            const title = modal.querySelector('h2');
+            if (title) title.textContent = 'Complete Drop-In Payment ($5.00)';
+
+            elementContainer.innerHTML = '';
+            errorDiv.textContent = '';
+            errorDiv.style.display = 'none';
+
+            modal.style.display = 'block';
+            // Ensure modal is visible in viewport
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            stripeDropInElements = stripeDropIn.elements({ clientSecret: data.clientSecret });
+            const paymentElement = stripeDropInElements.create('payment');
+            paymentElement.mount('#homePaymentElement');
+
+            const submitBtn = document.getElementById('homePayButton');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Pay $5.00';
+
+            submitBtn.onclick = async function() {
+              submitBtn.disabled = true;
+              submitBtn.textContent = 'Processing...';
+              errorDiv.textContent = '';
+              errorDiv.style.display = 'none';
+
+              try {
+                const { error: submitError } = await stripeDropInElements.submit();
+                if (submitError) {
+                  throw submitError;
+                }
+
+                const { error, paymentIntent } = await stripeDropIn.confirmPayment({
+                  elements: stripeDropInElements,
+                  confirmParams: {
+                    return_url: window.location.href
+                  },
+                  redirect: 'if_required'
+                });
+
+                if (error) {
+                  throw error;
+                }
+
+                if (paymentIntent && paymentIntent.status === 'succeeded') {
+                  // Mark payment as succeeded in our database immediately so it appears in the admin Drop Ins tab
+                  if (dropInPaymentIntentId) {
+                    try {
+                      await fetch('/api/gym-memberships/drop-in/confirm-from-client', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ paymentIntentId: dropInPaymentIntentId })
+                      });
+                    } catch (e) {
+                      // Non-fatal; webhook will still backfill later
+                      console.warn('Failed to confirm drop-in payment from client:', e && e.message);
+                    }
+                  }
+
+                  modal.style.display = 'none';
+                  alert('Drop-in payment successful! Enjoy your visit.');
+                }
+              } catch (err) {
+                errorDiv.textContent = (err && err.message) || 'Payment failed. Please try again.';
+                errorDiv.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Pay $5.00';
+              }
+            };
+          } catch (err) {
+            alert((err && err.message) || 'Unable to start payment. Please try again.');
+          } finally {
+            payBtn.disabled = false;
+            payBtn.textContent = 'Pay $5.00';
+          }
+        });
+      }
+    })();
+
+    // Free trial signup modal (mirror drop-in behavior)
+    (function() {
+      const modal = document.getElementById('homeFreeTrialModal');
+      const openBtn = document.getElementById('homeFreeTrialBtn');
+      const closeBtn = document.getElementById('homeFreeTrialModalClose');
+      const formWrap = document.getElementById('homeFreeTrialFormWrap');
+      const successWrap = document.getElementById('homeFreeTrialSuccessWrap');
+      const successMessage = document.getElementById('homeFreeTrialSuccessMessage');
+      const successCloseBtn = document.getElementById('homeFreeTrialSuccessClose');
+
+      const waiverBox = document.getElementById('homeFreeTrialWaiverBox');
+      const waiverToggle = document.getElementById('homeFreeTrialWaiverToggle');
+      const waiverToggleText = document.getElementById('homeFreeTrialWaiverToggleText');
+      const waiverAccept = document.getElementById('homeFreeTrialWaiverAccept');
+      const mustExpand = document.getElementById('homeFreeTrialMustExpand');
+
+      const firstName = document.getElementById('homeFreeTrialFirstName');
+      const lastName = document.getElementById('homeFreeTrialLastName');
+      const email = document.getElementById('homeFreeTrialEmail');
+      const phone = document.getElementById('homeFreeTrialPhone');
+      const howHeard = document.getElementById('homeFreeTrialHowHeard');
+      const question = document.getElementById('homeFreeTrialQuestion');
+
+      const dateRangeEl = document.getElementById('homeFreeTrialDateRange');
+      const errorEl = document.getElementById('homeFreeTrialError');
+      const emailErrorEl = document.getElementById('homeFreeTrialEmailError');
+      const submitBtn = document.getElementById('homeFreeTrialSubmit');
+
+      let waiverExpanded = false;
+      let waiverHasBeenExpanded = false;
+
+      function setFreeTrialBtnState() {
+        if (!submitBtn) return;
+        const first = (firstName.value || '').trim();
+        const last = (lastName.value || '').trim();
+        const em = (email.value || '').trim();
+        const heard = (howHeard.value || '').trim();
+        const phoneVal = (phone.value || '').trim();
+        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
+        const phoneOk = !phoneVal || /^[0-9()+\-.\s]{7,20}$/.test(phoneVal);
+        const waiverOk = waiverHasBeenExpanded && waiverAccept.checked;
+        const allOk = first && last && emailOk && phoneOk && heard && waiverOk;
+        submitBtn.disabled = !allOk;
+      }
+
+      function resetFreeTrialModal() {
+        waiverExpanded = false;
+        waiverHasBeenExpanded = false;
+        if (waiverBox) waiverBox.classList.remove('expanded');
+        if (waiverToggle) waiverToggle.setAttribute('aria-expanded', 'false');
+        if (waiverToggleText) waiverToggleText.textContent = 'Expand to read full waiver';
+        if (waiverAccept) waiverAccept.checked = false;
+        if (mustExpand) mustExpand.style.display = 'none';
+
+        [firstName, lastName, email, phone, howHeard, question].forEach(function (inp) {
+          if (inp) inp.value = '';
+        });
+        if (errorEl) { errorEl.textContent = ''; errorEl.style.display = 'none'; }
+        if (formWrap) formWrap.style.display = 'block';
+        if (successWrap) successWrap.style.display = 'none';
+
+        if (dateRangeEl) {
+          const today = new Date();
+          const end = new Date();
+          end.setDate(end.getDate() + 7);
+          const fmt = (d) =>
+            d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          dateRangeEl.textContent =
+            'Your free trial will run from ' + fmt(today) + ' through ' + fmt(end) + '.';
+        }
+
+        if (submitBtn) submitBtn.disabled = true;
+      }
+
+      // Phone formatting (US-style)
+      if (phone) {
+        phone.addEventListener('input', function () {
+          let digits = phone.value.replace(/\D/g, '').slice(0, 10);
+          let formatted = digits;
+          if (digits.length > 6) {
+            formatted = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+          } else if (digits.length > 3) {
+            formatted = `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+          } else if (digits.length > 0) {
+            formatted = `(${digits}`;
+          }
+          phone.value = formatted;
+          setFreeTrialBtnState();
+        });
+      }
+
+      if (openBtn && modal) {
+        openBtn.addEventListener('click', function () {
+          resetFreeTrialModal();
+          modal.style.display = 'block';
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+      if (closeBtn && modal) {
+        closeBtn.addEventListener('click', function () {
+          modal.style.display = 'none';
+        });
+      }
+      if (modal) {
+        modal.addEventListener('click', function (e) {
+          if (e.target === modal) modal.style.display = 'none';
+        });
+      }
+
+      if (waiverToggle && waiverBox) {
+        waiverToggle.addEventListener('click', function () {
+          waiverExpanded = !waiverExpanded;
+          if (waiverExpanded) waiverHasBeenExpanded = true;
+          waiverBox.classList.toggle('expanded', waiverExpanded);
+          if (waiverToggleText)
+            waiverToggleText.textContent = waiverExpanded
+              ? 'Collapse waiver'
+              : 'Expand to read full waiver';
+          waiverToggle.setAttribute('aria-expanded', waiverExpanded ? 'true' : 'false');
+          if (waiverExpanded && mustExpand) mustExpand.style.display = 'none';
+          setFreeTrialBtnState();
+        });
+      }
+
+      if (waiverAccept) {
+        waiverAccept.addEventListener('change', function () {
+          if (waiverAccept.checked && !waiverHasBeenExpanded) {
+            waiverAccept.checked = false;
+            if (mustExpand) mustExpand.style.display = 'block';
+          } else if (waiverHasBeenExpanded && mustExpand) {
+            mustExpand.style.display = 'none';
+          }
+          setFreeTrialBtnState();
+        });
+      }
+
+      [firstName, lastName, email, howHeard].forEach(function (inp) {
+        if (inp) {
+          inp.addEventListener('input', function () {
+            if (errorEl) { errorEl.textContent = ''; errorEl.style.display = 'none'; }
+            if (emailErrorEl && inp === email) { emailErrorEl.textContent = ''; emailErrorEl.style.display = 'none'; }
+            setFreeTrialBtnState();
+          });
+        }
+      });
+
+      // Validate email when user leaves the field (on blur), mirroring other forms
+      if (email) {
+        email.addEventListener('blur', function () {
+          const em = (email.value || '').trim();
+          if (!em) {
+            // Let the submit handler show the "required" message; keep inline error clear
+            if (emailErrorEl) { emailErrorEl.textContent = ''; emailErrorEl.style.display = 'none'; }
+          } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+            if (emailErrorEl) {
+              emailErrorEl.textContent = 'Please enter a valid email address.';
+              emailErrorEl.style.display = 'inline';
+            }
+          } else if (emailErrorEl) {
+            emailErrorEl.textContent = '';
+            emailErrorEl.style.display = 'none';
+          }
+          setFreeTrialBtnState();
+        });
+      }
+
+      if (submitBtn) {
+        submitBtn.addEventListener('click', async function () {
+          if (errorEl) { errorEl.textContent = ''; errorEl.style.display = 'none'; }
+
+          const first = (firstName.value || '').trim();
+          const last = (lastName.value || '').trim();
+          const em = (email.value || '').trim();
+          const phoneVal = (phone.value || '').trim();
+          const heard = (howHeard.value || '').trim();
+          const q = (question && question.value ? question.value : '').trim();
+
+          if (!waiverHasBeenExpanded || !waiverAccept.checked) {
+            if (errorEl) {
+              errorEl.textContent =
+                'Please expand and read the waiver, then check the box to accept it.';
+              errorEl.style.display = 'block';
+            }
+            return;
+          }
+          if (!first || !last) {
+            if (errorEl) {
+              errorEl.textContent = 'Please enter your first and last name.';
+              errorEl.style.display = 'block';
+            }
+            return;
+          }
+          if (!em) {
+            if (errorEl) {
+              errorEl.textContent = 'Please enter your email address.';
+              errorEl.style.display = 'block';
+            }
+            if (emailErrorEl) { emailErrorEl.textContent = 'Please enter your email address.'; emailErrorEl.style.display = 'inline'; }
+            email.focus();
+            return;
+          }
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+            if (errorEl) {
+              errorEl.textContent = 'Please enter a valid email address.';
+              errorEl.style.display = 'block';
+            }
+            if (emailErrorEl) { emailErrorEl.textContent = 'Please enter a valid email address.'; emailErrorEl.style.display = 'inline'; }
+            email.focus();
+            return;
+          }
+          if (phoneVal && !/^[0-9()+\-.\s]{7,20}$/.test(phoneVal)) {
+            if (errorEl) {
+              errorEl.textContent = 'Please enter a valid phone number.';
+              errorEl.style.display = 'block';
+            }
+            phone.focus();
+            return;
+          }
+          if (!heard) {
+            if (errorEl) {
+              errorEl.textContent = 'Please tell us how you heard about us.';
+              errorEl.style.display = 'block';
+            }
+            howHeard.focus();
+            return;
+          }
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Submitting...';
+          try {
+            const res = await fetch('/api/free-trial/signup', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                firstName: first,
+                lastName: last,
+                email: em,
+                phone: phoneVal || undefined,
+                howHeard: heard,
+                question: q || undefined,
+                waiverAccepted: true,
+              }),
+            });
+            const data = await res.json().catch(function () {
+              return {};
+            });
+            if (!res.ok) {
+              const fmtMtLong = function (ymd) {
+                if (!ymd || typeof ymd !== 'string') return '';
+                var parts = ymd.split('T')[0].split('-');
+                if (parts.length !== 3) return ymd;
+                var dt = new Date(Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0));
+                if (isNaN(dt.getTime())) return ymd;
+                return dt.toLocaleDateString('en-US', {
+                  timeZone: 'America/Denver',
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric',
+                });
+              };
+              var dupMsg = data.error || 'Signup failed. Please try again.';
+              if (data.code === 'free_trial_duplicate' && data.existingTrial && data.existingTrial.startDate && data.existingTrial.endDate) {
+                dupMsg =
+                  dupMsg +
+                  ' That signup was recorded for ' +
+                  fmtMtLong(data.existingTrial.startDate) +
+                  ' through ' +
+                  fmtMtLong(data.existingTrial.endDate) +
+                  ' (Mountain Time).';
+              }
+              throw { message: dupMsg, isDuplicate: data.code === 'free_trial_duplicate' };
+            }
+            const startDate = data.startDate || '';
+            const endDate = data.endDate || '';
+            const fmtMDY = (d) => {
+              if (!d || typeof d !== 'string') return d || '';
+              const parts = d.split('-');
+              if (parts.length !== 3) return d;
+              const [yyyy, mm, dd] = parts;
+              const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+              const mmm = months[parseInt(mm, 10) - 1] || mm;
+              return mmm + '-' + dd + '-' + yyyy;
+            };
+            if (successMessage) {
+              successMessage.textContent =
+                'Your 7-day free trial runs from ' +
+                fmtMDY(startDate) +
+                ' through ' +
+                fmtMDY(endDate) +
+                '.';
+            }
+            if (formWrap) formWrap.style.display = 'none';
+            if (successWrap) successWrap.style.display = 'block';
+          } catch (err) {
+            if (errorEl) {
+              const msg =
+                (err && err.message) || 'Something went wrong. Please try again.';
+              errorEl.textContent = msg;
+              const isDup =
+                (err && err.isDuplicate) ||
+                msg.indexOf('already been submitted for this email or phone') !== -1 ||
+                msg.indexOf('already been issued for this email or phone number') !== -1;
+              if (isDup) {
+                errorEl.classList.add('dropin-must-expand');
+              } else {
+                errorEl.classList.remove('dropin-must-expand');
+              }
+              errorEl.style.display = 'block';
+            }
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Start my free trial';
+          }
+        });
+      }
+
+      if (successCloseBtn && modal) {
+        successCloseBtn.addEventListener('click', function () {
+          resetFreeTrialModal();
+          modal.style.display = 'none';
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

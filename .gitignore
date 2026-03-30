@@ -1,0 +1,44 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+*.swp
+*.swo
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Build / coverage / caches
+dist/
+build/
+coverage/
+.cache/
+.parcel-cache/
+.next/
+
+# OS / editor junk
+.vscode/
+.idea/
+.cursor/
+*.tmp
+*.bak
+
+# Runtime files
+pids/
+*.pid
+
+# Local secrets
+client_secret_*.json
+
+# Local databases / backups / exports
+*.db
+*.sqlite
+backups/
+*.sql
+*.csv
+test-results.txt
+*.bak2
+

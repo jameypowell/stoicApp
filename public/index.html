@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="connect-src 'self' https://api.stripe.com https://m.stripe.com https://m.stripe.network https://stripe.com https://*.stripe.com https://*.stripe.network; script-src 'self' 'unsafe-inline' https://js.stripe.com https://m.stripe.network; frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://m.stripe.com https://m.stripe.network;">
+    <title>Stoic App</title>
+    <link rel="icon" type="image/png" href="/images/favicon_white.png">
+    <link rel="apple-touch-icon" href="/images/favicon_white.png">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Stoic App">
+    <meta property="og:description" content="Your functional fitness hub - Access workouts, core finishers, and macro calculator">
+    <meta property="og:image" content="/images/all_black_STOIC_long.png">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Stoic App">
+    <meta name="twitter:description" content="Your functional fitness hub - Access workouts, core finishers, and macro calculator">
+    <meta name="twitter:image" content="/images/all_black_STOIC_long.png">
+    
+    <link rel="stylesheet" href="styles.css?v=20260330-gym-tabs-dark-unified">
+    <!-- build 20260306 group 15%, group name, cache bust -->
+</head>
+<body>
+    <div class="news-ribbon">
+        <div class="news-ribbon-track">
+            <span>Your gym membership will be managed here soon. <a href="https://app.stoic-fit.com">Get the app</a> to stay connected.</span>
+            <span>Your gym membership will be managed here soon. <a href="https://app.stoic-fit.com">Get the app</a> to stay connected.</span>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <img src="/images/all_white_STOIC_long.png" alt="Stoic Fit Shop" class="logo">
+            </div>
+            <div class="nav-actions" id="navActions">
+                <div id="userInfo" class="user-info" style="display: none;">
+                    <a id="logoutBtn" href="#" class="logout-link" style="display: none;" title="Logout">Logout</a>
+                    <span class="welcome-message">
+                        <span class="welcome-label">Welcome,</span>
+                        <span id="userEmail" class="user-email"></span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Auth Section -->
+    <div id="authSection" class="section">
+        <div class="container">
+            <div class="auth-container">
+                <img src="/images/all_black_STOIC_long.png" alt="Stoic Fit" class="auth-logo">
+                <h2>Welcome to Your Functional Fitness Hub</h2>
+                <p class="subtitle">Access your workouts here</p>
+                
+                <!-- Google OAuth Buttons (Primary) -->
+                <div id="googleAuthSection" class="google-auth-section">
+                    <button type="button" id="googleSignInBtn" class="btn btn-google">
+                        <svg width="18" height="18" viewBox="0 0 18 18" style="margin-right: 8px;">
+                            <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+                            <path fill="#FBBC05" d="M3.964 10.712c-.18-.54-.282-1.117-.282-1.712 0-.595.102-1.173.282-1.712V4.956H.957C.348 6.173 0 7.548 0 9s.348 2.827.957 4.044l3.007-2.332z"/>
+                            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.956L3.964 7.288C4.672 5.163 6.656 3.58 9 3.58z"/>
+                        </svg>
+                        Sign in with Google
+                    </button>
+                    
+                    <p class="email-password-link">
+                        <a href="#" id="showEmailPasswordLink">Use email and password instead</a>
+                    </p>
+                </div>
+
+                <!-- Email/Password Forms (Hidden by default) -->
+                <div id="emailPasswordSection" class="email-password-section" style="display: none;">
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="login">Login</button>
+                        <button class="tab-btn" data-tab="register">Register</button>
+                    </div>
+
+                    <!-- Login Form -->
+                    <form id="loginForm" class="auth-form">
+                        <div class="form-group">
+                            <label for="loginEmail">Email</label>
+                            <input type="email" id="loginEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">Password</label>
+                            <input type="password" id="loginPassword" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Login</button>
+                        <div id="loginError" class="error-message"></div>
+                        <p class="forgot-password-link">
+                            <a href="#" id="forgotPasswordLink">Forgot password?</a>
+                        </p>
+                    </form>
+
+                    <!-- Forgot Password Form -->
+                    <form id="forgotPasswordForm" class="auth-form" style="display: none;">
+                        <h3>Reset Password</h3>
+                        <p class="form-help-text">Enter your email address and we'll send you a link to reset your password.</p>
+                        <div class="form-group">
+                            <label for="forgotPasswordEmail">Email</label>
+                            <input type="email" id="forgotPasswordEmail" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Send Reset Link</button>
+                        <div id="forgotPasswordError" class="error-message"></div>
+                        <div id="forgotPasswordSuccess" class="success-message" style="display: none;"></div>
+                        <p class="back-to-login-link">
+                            <a href="#" id="backToLoginLink">← Back to login</a>
+                        </p>
+                    </form>
+
+                    <!-- Reset Password Form (shown when token is in URL) -->
+                    <form id="resetPasswordForm" class="auth-form" style="display: none;">
+                        <h3>Set New Password</h3>
+                        <div class="form-group">
+                            <label for="resetPassword">New Password</label>
+                            <input type="password" id="resetPassword" required minlength="6">
+                        </div>
+                        <div class="form-group">
+                            <label for="resetPasswordConfirm">Confirm New Password</label>
+                            <input type="password" id="resetPasswordConfirm" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Reset Password</button>
+                        <div id="resetPasswordError" class="error-message"></div>
+                        <div id="resetPasswordSuccess" class="success-message" style="display: none;"></div>
+                    </form>
+
+                    <!-- Required password change after temporary 6-digit code login -->
+                    <form id="tempPasswordChangeForm" class="auth-form" style="display: none;">
+                        <h3>Create Your Password</h3>
+                        <p class="form-help-text">Your temporary code worked. Create a new password to continue.</p>
+                        <div class="form-group">
+                            <label for="tempNewPassword">New Password</label>
+                            <input type="password" id="tempNewPassword" required minlength="6">
+                        </div>
+                        <div class="form-group">
+                            <label for="tempNewPasswordConfirm">Confirm New Password</label>
+                            <input type="password" id="tempNewPasswordConfirm" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Password and Continue</button>
+                        <div id="tempPasswordChangeError" class="error-message"></div>
+                    </form>
+
+                    <!-- Register Form -->
+                    <form id="registerForm" class="auth-form" style="display: none;">
+                        <div class="form-group">
+                            <label for="registerEmail">Email</label>
+                            <input type="email" id="registerEmail" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="registerPassword">Password</label>
+                            <input type="password" id="registerPassword" required minlength="6">
+                        </div>
+                        <div class="form-group">
+                            <label for="registerPasswordConfirm">Confirm Password</label>
+                            <input type="password" id="registerPasswordConfirm" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Register</button>
+                        <div id="registerError" class="error-message"></div>
+                    </form>
+                    
+                    <p class="back-to-google-link">
+                        <a href="#" id="backToGoogleLink">← Back to Google sign in</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Section -->
+    <div id="dashboardSection" class="section" style="display: none;">
+        <div class="container">
+            <div class="dashboard-layout">
+                <!-- Dashboard Card -->
+                <div class="card dashboard-card">
+                    <div class="dashboard-header">
+                        <h2>Fitness Dashboard</h2>
+                        <button type="button" class="dashboard-toggle-btn" id="dashboardToggleBtn" aria-label="Toggle dashboard items" style="display: none;">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="dashboard-summary-wrapper">
+                        <div class="dashboard-summary" id="dashboardSummary">
+                            <!-- 1. My Account -->
+                            <a href="#" class="dashboard-item clickable" id="dashboardGymMembership" data-row="1">
+                                <span class="summary-label">My Account</span>
+                                <span class="summary-value">Gym and App Access</span>
+                            </a>
+                            <!-- 2. Functional Fitness Workouts -->
+                            <a href="#" class="dashboard-item clickable" id="dashboardFunctionalFitness" data-row="1">
+                                <span class="summary-label">Functional Fitness Workouts</span>
+                                <span class="summary-value">View Today's Workout</span>
+                            </a>
+                            <!-- 3. Strength Workouts -->
+                            <a href="#" class="dashboard-item clickable" id="dashboardStrengthWorkouts" data-row="2">
+                                <span class="summary-label">Strength Workouts</span>
+                                <span class="summary-value">View Strength</span>
+                            </a>
+                            <!-- 4. Core Finisher Workouts -->
+                            <a href="#" class="dashboard-item clickable" id="dashboardCoreFinisher" data-row="2">
+                                <span class="summary-label">Core Finisher Workouts</span>
+                                <span class="summary-value">View Core Finishers</span>
+                            </a>
+                            <!-- 5. Nutrition Coach -->
+                            <a href="#" class="dashboard-item clickable" id="dashboardPersonalTrainer" data-row="3">
+                                <span class="summary-label">Nutrition Coach</span>
+                                <span class="summary-value">Calculate Macros and Create Meal Plans</span>
+                            </a>
+                            <!-- 6. Strength Coach -->
+                            <a href="#" class="dashboard-item clickable" id="dashboardPersonalStrengthCoach" data-row="3">
+                                <span class="summary-label">Strength Coach</span>
+                                <span class="summary-value">View Strength Workouts</span>
+                            </a>
+                            <!-- 7. Body Composition Tracker -->
+                            <a href="#" class="dashboard-item clickable" id="dashboardBodyComposition" data-row="3">
+                                <span class="summary-label">Body Composition Tracker</span>
+                                <span class="summary-value">Track Your Progress</span>
+                            </a>
+                            <!-- 8. Admin (always last) -->
+                            <a href="#" class="dashboard-item clickable" id="dashboardAdmin" data-row="3" style="display: none;">
+                                <span class="summary-label">Admin</span>
+                                <span class="summary-value">Administrator Console</span>
+                            </a>
+                        </div>
+                        <div class="dashboard-carousel-controls" id="dashboardCarouselControls" style="display: none;">
+                            <button id="dashboardCarouselPrev" class="carousel-btn" aria-label="Previous dashboard items">&#10094;</button>
+                            <button id="dashboardCarouselNext" class="carousel-btn" aria-label="Next dashboard items">&#10095;</button>
+                        </div>
+                    </div>
+                    <div class="dashboard-instructions dashboard-instructions-collapsible">
+                        <div class="dashboard-instructions-header" id="dashboardInfoHeader">
+                            <p><strong>Need help getting started?</strong></p>
+                            <button type="button" class="dashboard-expand-btn" id="dashboardExpandInfoBtn" aria-label="Expand info">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="dashboard-instructions-content" id="dashboardInfoContent" style="display: none;">
+                            <p>Access your daily workouts, strength training programs, core finishers, and nutrition tools all in one place. Select an option above to get started.</p>
+                            <p><strong>How it works:</strong> Each tile above provides access to different aspects of your fitness journey:</p>
+                            <ul style="margin-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.75rem; color: #e0e0e0; line-height: 1.8;">
+                                <li><strong>Functional Fitness Workouts:</strong> Daily training sessions designed to improve your overall functional movement and conditioning.</li>
+                                <li><strong>Strength Workouts:</strong> Structured strength training programs organized by phases to build muscle and power.</li>
+                                <li><strong>Core Finisher Workouts:</strong> Targeted core strength exercises to complete your training sessions.</li>
+                                <li><strong>Nutrition Coach:</strong> Calculate your daily macronutrient needs and create personalized meal plans.</li>
+                                <li><strong>Strength Coach:</strong> Access additional strength training resources and guidance.</li>
+                                <li><strong>Body Composition Tracker:</strong> Log and monitor your body measurements and composition over time.</li>
+                                <li><strong>My Account:</strong> Manage your gym membership and app subscription settings.</li>
+                            </ul>
+                            <p><strong>Getting started:</strong> Click on any tile above to navigate directly to that section. You can always return to the dashboard to access other features.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gym Membership -->
+                <div class="card gym-membership-card" style="display: block;">
+                    <h2>Stoic Fitness Gym Membership</h2>
+                    <p class="gym-membership-address">132 W Volunteer Dr<br>Spanish Fork, Utah 84660</p>
+                    <div id="gymMembershipStatus" style="display: none;">
+                        <div class="subscription-summary">
+                            <div class="summary-item tier-blue">
+                                <span class="summary-label">Type</span>
+                                <span class="summary-value">Monthly</span>
+                            </div>
+                            <div class="summary-item status-active" style="background-color:#047857 !important">
+                                <span class="summary-label">Status</span>
+                                <span class="summary-value">Active</span>
+                            </div>
+                            <div class="summary-item expires-normal" style="background-color:#047857 !important">
+                                <span class="summary-label">Next Billing Cycle</span>
+                                <span class="summary-value">2025-12-01</span>
+                            </div>
+                        </div>
+                        <p class="subscription-description-small">Your Stoic Fitness gym membership gives you access to the facility and any classes offered during your active billing period.</p>
+                    </div>
+                    <!-- Gym Membership Details -->
+                    <div id="gymMembershipDetails" class="gym-membership-details" style="margin-top: 1.5rem;">
+                        <!-- Coming soon message will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Subscription Status (content from renderSubscriptionStatus() only — no static tier/status here) -->
+                <div class="card subscription-card" title="" style="display: block; cursor: default;">
+                    <h2 style="display: block;">App Subscription</h2>
+                    <div id="subscriptionStatus">
+                        <p class="loading" style="text-align: center; padding: 1rem; color: #666;">Loading subscription…</p>
+                    </div>
+                    <div id="subscriptionTiers" class="tiers-container tiers-container-upgrade" style="display: none;">
+                    <p id="upgradeMessage" class="upgrade-message">Upgrade your subscription to get full access to workouts, meal plans, strength training, and more.</p>
+                    <div class="upgrade-plans-toggle" id="upgradePlansToggle" role="button" tabindex="0" aria-expanded="false" onclick="toggleUpgradePlans()" onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); toggleUpgradePlans(); }">
+                        <span id="upgradePlansToggleText">View subscription plans</span>
+                        <svg id="upgradePlansToggleIcon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6L8 10L12 6"/></svg>
+                    </div>
+                    <div id="upgradePlansContent" class="upgrade-plans-content" style="display: none;">
+                        <h3>Choose a plan</h3>
+                        <div class="tiers"> <div class="tier-card tier-order-1"> <h4>Tier One</h4> <div class="price">FREE</div> <p class="tier-description">View today's workout for 4 consecutive days<br>No access to previous or upcoming Functional Fitness workouts<br>1 meal plan calculation (complete flow, then locks)<br>1 Phase One Strength workout<br>1 Core Finisher<br>3 saved 1RM lifts<br>2 body composition measurements<br>Automatically expires after 10 days</p> <button class="btn btn-primary" onclick="purchaseTier('tier_one')">Select</button> </div> <div class="tier-card tier-order-2"> <h4>Tier Two</h4> <div class="price">$7.00</div> <p class="tier-description">View today's workout for 8 consecutive days<br>No access to previous or upcoming Functional Fitness workouts<br>2 meal plan calculations (complete flow each time, then locks)<br>Access to Strength Phase One<br>First 5 Core Finishers<br>5 saved 1RM lifts<br>5 body composition measurements<br>30-day subscription, automatically renews</p> <button class="btn btn-primary" onclick="purchaseTier('tier_two')">Purchase</button> </div> <div class="tier-card tier-order-3"> <h4>Tier Three</h4> <div class="price">$12.00</div> <p class="tier-description">5-day workout window: view 2 days prior, today, and 2 days after<br>3 meal plan calculations + saves inputs<br>Access to Strength Phase One only<br>First 10 Core Finishers<br>10 saved 1RM lifts<br>8 body composition measurements<br>Save up to 1 meal plan<br>30-day subscription, automatically renews</p> <button class="btn btn-primary" onclick="purchaseTier('tier_three')">Purchase</button> </div> <div class="tier-card featured tier-order-4"> <h4>Tier Four</h4> <div class="price">$18.00</div> <p class="tier-description">Full month of workouts: past, current, and upcoming<br>Unlimited meal plan calculations + saves inputs<br>Access to Strength Phases One, Two, and Three<br>Unlimited Core Finishers<br>15 saved 1RM lifts<br>Unlimited body composition measurements<br>Save up to 1 meal plan<br>30-day subscription, automatically renews</p> <button class="btn btn-primary" onclick="purchaseTier('tier_four')">Purchase</button> </div> </div> </div> </div> </div>
+
+                <!-- Today's Workout -->
+                <div class="card today-workout-card">
+                    <div class="card-header">
+                        <div class="card-header-tabs" style="display: none !important;">
+                            <button class="card-tab active" id="workoutTab" data-view="workout">Functional Fitness Workouts</button>
+                            <button class="card-tab" id="coreTab" data-view="core">Core Finishers</button>
+                            <button class="card-tab" id="strengthTab" data-view="strength">Strength Workouts</button>
+                            <button class="card-tab" id="macroTab" data-view="macro">Nutrition Coach</button>
+                            <button class="card-tab" id="adminTab" data-view="admin" style="display: none;">Admin Console</button>
+                        </div>
+                        <h2 id="selectedHeading" style="display:none; text-align: center; margin: 0 auto; width: 100%;">Core Finishers</h2>
+                        <div class="strength-phase-tabs" style="display: none;">
+                            <button class="strength-phase-tab active" id="strengthPhaseOne" data-phase="Phase One: Beginner">Phase<br>One</button>
+                            <button class="strength-phase-tab" id="strengthPhaseTwo" data-phase="Phase Two: Intermediate">Phase<br>Two</button>
+                            <button class="strength-phase-tab" id="strengthPhaseThree" data-phase="Phase Three: Advanced">Phase<br>Three</button>
+                        </div>
+                        <h2 id="todayHeading">Today's Workout</h2>
+                    </div>
+                    <div id="todayWorkoutContent" class="today-workout-content">
+                        <h2 style="margin-bottom: 1rem; color: #333; font-size: 1.25rem; font-weight: 600; text-align: center;">Functional Fitness Workouts</h2>
+                        <p class="loading">Loading today's workout...</p>
+                    </div>
+                    <div id="coreContent" class="core-content" style="display: none;">
+                        <h3 id="coreSelectedHeading" style="margin-bottom: 0.75rem; color: #666; font-size: 1rem; font-weight: 500; text-align: center; display: none;">Your Selected Core Finisher</h3>
+                        <div class="today-workout-content">
+                            <p class="loading">Loading Core Finishers...</p>
+                        </div>
+                    </div>
+                    <div id="strengthContent" class="strength-content" style="display: none;">
+                        <h3 id="strengthSelectedHeading" style="margin-bottom: 0.75rem; color: #666; font-size: 1rem; font-weight: 500; text-align: center; display: none;">Your Selected Strength Workout</h3>
+                        <div class="today-workout-content">
+                            <p class="loading">Loading Strength Workouts...</p>
+                        </div>
+                    </div>
+                    <div id="macroContent" class="macro-content" style="display: none;">
+                        <h2 style="margin-bottom: 1rem; color: #333; font-size: 1.25rem; font-weight: 600; text-align: center;">Macro Calculator</h2>
+                        <!-- Macro Calculator content will be rendered here -->
+                    </div>
+                    <div id="personalTrainerContent" class="personal-trainer-content" style="display: none;">
+                        <h2 style="margin-bottom: 1rem; color: #333; font-size: 1.25rem; font-weight: 600; text-align: center;">Nutrition Coach</h2>
+                        <div class="personal-trainer-header">
+                            <div class="personal-trainer-tabs">
+                                <button class="personal-trainer-tab active" id="ptMyGoalsTab" data-pt-tab="my-goals">My Goals</button>
+                                <button class="personal-trainer-tab" id="ptMyInfoTab" data-pt-tab="my-info">My Info</button>
+                                <button class="personal-trainer-tab" id="ptActivityLevelTab" data-pt-tab="activity-level">Activity Level</button>
+                                <button class="personal-trainer-tab" id="ptMealPlanTab" data-pt-tab="meal-plan">Meal Plan</button>
+                            </div>
+                        </div>
+                        <div id="ptMyGoalsContent" class="pt-tab-content">
+                            <!-- My Goals content will be rendered here -->
+                        </div>
+                        <div id="ptMyInfoContent" class="pt-tab-content" style="display: none;">
+                            <!-- My Info content (Age, Gender, Height, Weight, Body Fat) will be rendered here -->
+                        </div>
+                        <div id="ptActivityLevelContent" class="pt-tab-content" style="display: none;">
+                            <!-- Activity Level content will be rendered here -->
+                        </div>
+                        <div id="ptMealPlanContent" class="pt-tab-content" style="display: none;">
+                            <!-- Meal Plan content will be rendered here -->
+                        </div>
+                    </div>
+                    <div id="personalStrengthCoachContent" class="personal-trainer-content" style="display: none;">
+                        <h2 style="margin-bottom: 1rem; color: #333; font-size: 1.25rem; font-weight: 600; text-align: center;">Strength Coach</h2>
+                        <div class="personal-trainer-header">
+                            <div class="personal-trainer-tabs">
+                                <button class="personal-trainer-tab" id="pscPRCalcTab" data-psc-tab="pr-calc">1RM Calc</button>
+                                <button class="personal-trainer-tab" id="pscPRLogTab" data-psc-tab="pr-log">1RM Log</button>
+                                <button class="personal-trainer-tab active" id="pscProgressiveOverloadTab" data-psc-tab="progressive-overload">Progressive Overloads</button>
+                            </div>
+                        </div>
+                        <div id="pscPRCalcContent" class="pt-tab-content" style="display: none;">
+                            <!-- PR Calc content will be rendered here -->
+                        </div>
+                        <div id="pscPRLogContent" class="pt-tab-content" style="display: none;">
+                            <!-- PR Log content will be rendered here -->
+                        </div>
+                        <div id="pscProgressiveOverloadContent" class="pt-tab-content" style="display: block;">
+                            <!-- Progressive Overloads content will be rendered here -->
+                        </div>
+                    </div>
+                    <div id="adminContent" class="admin-content" style="display: none;">
+                        <div class="admin-header">
+                            <h3>Admin Console</h3>
+                        </div>
+                        <div class="admin-tabs">
+                            <button class="admin-tab active" id="adminUsersTab" data-admin-tab="users">Users</button>
+                            <button class="admin-tab" id="adminGroupsTab" data-admin-tab="groups">Groups</button>
+                            <button class="admin-tab" id="adminWorkoutsTab" data-admin-tab="workouts">Workouts</button>
+                            <button class="admin-tab" id="adminMembersTab" data-admin-tab="gym-members">Gym Members</button>
+                            <button class="admin-tab" id="adminAppSubsTab" data-admin-tab="app-subs">App Subs</button>
+                            <button class="admin-tab" id="adminTransactionsTab" data-admin-tab="transactions">Transactions</button>
+                            <button class="admin-tab" id="adminDropInsTab" data-admin-tab="drop-ins">Drop Ins</button>
+                            <button class="admin-tab" id="adminFreeTrialsTab" data-admin-tab="free-trials">Free Trial</button>
+                            <button class="admin-tab" id="adminAddMemberTab" data-admin-tab="add-member">Add Member</button>
+                            <button class="admin-tab" id="adminBannerTab" data-admin-tab="banner">Banner Message</button>
+                            <button class="admin-tab" id="adminHealthTab" data-admin-tab="health">Health Status</button>
+                            <button class="admin-tab" id="adminErrorLogsTab" data-admin-tab="error-logs">Error Log</button>
+                        </div>
+                        <div id="adminUsersContent" class="admin-tab-content" style="display: block;">
+                            <div id="usersTableContainer" class="users-table-container">
+                                <p class="loading">Loading users...</p>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                                <button class="btn btn-small" id="refreshUsersBtn">Refresh</button>
+                            </div>
+                        </div>
+                        <div id="adminGroupsContent" class="admin-tab-content" style="display: none;">
+                            <p style="margin: 0 0 0.75rem 0; font-size: 0.875rem; color: #6b7280;">Gym discount groups. Click a row to expand members. Deleting a group removes the group only; members stay on their gym memberships without this group link.</p>
+                            <div id="adminGroupsTableContainer" class="users-table-container">
+                                <p class="loading">Loading groups...</p>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                                <button class="btn btn-small" id="refreshGroupsBtn">Refresh</button>
+                            </div>
+                        </div>
+                        <div id="adminDropInsContent" class="admin-tab-content" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                                <label for="dropInsFilter" style="font-size: 0.875rem;">Filter:</label>
+                                <select id="dropInsFilter" style="padding: 0.375rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <option value="">All (paid + buddy pass)</option>
+                                    <option value="drop_in">Paid drop-ins only</option>
+                                    <option value="buddy_pass">Buddy pass only</option>
+                                </select>
+                                <button class="btn btn-small" id="refreshDropInsBtn">Refresh</button>
+                            </div>
+                            <div id="dropInsTableContainer" class="users-table-container">
+                                <p class="loading">Loading drop-ins...</p>
+                            </div>
+                        </div>
+                        <div id="adminFreeTrialsContent" class="admin-tab-content" style="display: none;">
+                            <div id="freeTrialsTableContainer" class="users-table-container">
+                                <p class="loading">Loading free trials...</p>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                                <button class="btn btn-small" id="refreshFreeTrialsBtn">Refresh</button>
+                            </div>
+                        </div>
+                        <div id="adminAddMemberContent" class="admin-tab-content" style="display: none;">
+                            <div id="addMemberFormContainer" class="admin-add-member-form" style="max-width: 720px; padding: 1rem 0;"></div>
+                        </div>
+                        <div id="adminMembersContent" class="admin-tab-content" style="display: none;">
+                            <div id="membersTableContainer" class="users-table-container">
+                                <p class="loading">Loading gym members...</p>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                                <button class="btn btn-small" id="refreshMembersBtn">Refresh</button>
+                            </div>
+                        </div>
+                        <div id="adminAppSubsContent" class="admin-tab-content" style="display: none;">
+                            <div id="appSubsTableContainer" class="users-table-container">
+                                <p class="loading">Loading app subscriptions...</p>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                                <button class="btn btn-small" id="refreshAppSubsBtn">Refresh</button>
+                            </div>
+                        </div>
+                        <div id="adminTransactionsContent" class="admin-tab-content" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                                <button type="button" class="btn btn-small admin-transactions-subtab active" id="adminTransactionsSubUpcoming" data-tx-sub="upcoming">Upcoming</button>
+                                <button type="button" class="btn btn-small admin-transactions-subtab" id="adminTransactionsSubPast" data-tx-sub="past">Past</button>
+                            </div>
+                            <div id="transactionsUpcomingContainer" class="users-table-container">
+                                <p class="loading">Loading upcoming transactions...</p>
+                            </div>
+                            <div id="transactionsPastContainer" class="users-table-container" style="display: none;">
+                                <p class="loading">Loading past transactions...</p>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                                <button class="btn btn-small" id="refreshTransactionsBtn">Refresh</button>
+                            </div>
+                        </div>
+                        <div id="adminBannerContent" class="admin-tab-content" style="display: none;">
+                            <div style="max-width: 600px; padding: 1rem 0;">
+                                <h3 style="margin-bottom: 1rem; color: #333; font-size: 1.1rem; font-weight: 600;">Banner Message</h3>
+                                <form id="adminBannerForm">
+                                    <div class="form-group">
+                                        <label for="bannerMessageInput">Message</label>
+                                        <textarea id="bannerMessageInput" rows="3" style="width: 100%; resize: vertical;"></textarea>
+                                    </div>
+                                    <div class="form-group" style="display: flex; gap: 1rem;">
+                                        <div style="flex: 1;">
+                                            <label for="bannerBgColorSelect">Background Color</label>
+                                            <select id="bannerBgColorSelect" style="width: 100%;">
+                                                <option value="yellow">Yellow</option>
+                                                <option value="red">Red</option>
+                                                <option value="blue">Blue</option>
+                                                <option value="white">White</option>
+                                            </select>
+                                        </div>
+                                        <div style="flex: 1;">
+                                            <label for="bannerTextColorSelect">Font Color</label>
+                                            <select id="bannerTextColorSelect" style="width: 100%;">
+                                                <option value="black">Black</option>
+                                                <option value="white">White</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div id="bannerFormError" class="error-message" style="display: none; margin-bottom: 0.75rem;"></div>
+                                    <div id="bannerFormSuccess" class="success-message" style="display: none; margin-bottom: 0.75rem;"></div>
+                                    <button type="submit" class="btn btn-primary">Save Banner</button>
+                                </form>
+                            </div>
+                        </div>
+                        <div id="adminHealthContent" class="admin-tab-content" style="display: none;">
+                            <div style="max-width: 960px; padding: 1rem 0;">
+                                <h3 style="margin-bottom: 0.5rem; color: #333; font-size: 1.1rem; font-weight: 600;">Health checks</h3>
+                                <p style="margin-bottom: 1rem; font-size: 0.875rem; color: #666;">Run checks against the production server (database, Stripe, API, env).</p>
+                                <button type="button" class="btn btn-primary" id="adminHealthRunBtn">Run health checks</button>
+                                <div id="adminHealthResult" style="margin-top: 1rem; font-size: 0.875rem;"></div>
+                                <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid #e5e7eb;">
+                                    <h4 style="margin: 0 0 0.5rem 0; color: #333; font-size: 1rem; font-weight: 600;">App vs gym — fix missing free trial</h4>
+                                    <p style="margin-bottom: 0.75rem; font-size: 0.875rem; color: #666;">For active gym members with <strong>no</strong> app subscription row, creates Tier One (same window as first app load). Reports duplicate active app subscriptions if any (not auto-fixed).</p>
+                                    <button type="button" class="btn btn-primary" id="adminAppGymAuditBtn">Check &amp; fix app access</button>
+                                    <div id="adminAppGymAuditResult" style="margin-top: 1rem; font-size: 0.8125rem;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="adminErrorLogsContent" class="admin-tab-content" style="display: none;">
+                            <h3>Payment / Subscription Error Log</h3>
+                            <p style="margin-top: 0; color: #6b7280;">Recent app subscription errors (incomplete attempts, failed confirmations, missing client secrets).</p>
+                            <div id="adminErrorLogsTableContainer">
+                                <p class="loading">Loading error logs...</p>
+                            </div>
+                        </div>
+                        <div id="adminWorkoutsContent" class="admin-tab-content" style="display: none;">
+                            <div class="admin-workout-form-container" style="margin-bottom: 2rem;">
+                                <h3 style="margin-bottom: 0.5rem; color: #333; font-size: 1.1rem; font-weight: 600;">Load Functional Fitness Workout</h3>
+                                <p style="margin-bottom: 1rem; font-size: 0.875rem; color: #666;">Fill in the date, carousel focus, title, and sections to add a functional fitness workout.</p>
+                                <div id="functionalFitnessFormError" class="error-message" style="display: none; margin-bottom: 0.75rem; padding: 0.75rem; background: #f8d7da; border: 1px solid #dc3545; border-radius: 4px; color: #721c24;"></div>
+                                <div id="functionalFitnessFormSuccess" class="success-message" style="display: none; margin-bottom: 0.75rem; padding: 0.75rem; background: #d1e7dd; border: 1px solid #0f5132; border-radius: 4px; color: #0f5132;"></div>
+                                <form id="adminFunctionalFitnessForm" class="admin-workout-form" style="max-width: 720px;">
+                                    <div class="form-group">
+                                        <label for="ffWorkoutDate">Date *</label>
+                                        <input type="date" id="ffWorkoutDate" name="date" required>
+                                    </div>
+                                    <div id="ffDateExistingNotice" style="display:none; margin-bottom: 0.75rem; padding: 0.75rem; background: #fff3cd; border: 1px solid #f59e0b; border-radius: 6px; color: #92400e; font-size: 0.875rem;">
+                                        Existing workout found for this date. You are editing and will overwrite on save.
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Carousel Pills (up to 3; optional)</label>
+                                        <input type="text" id="ffCarouselPill1" name="carousel_pill_1" placeholder="Pill 1 (optional)" style="margin-bottom: 0.5rem;">
+                                        <input type="text" id="ffCarouselPill2" name="carousel_pill_2" placeholder="Pill 2 (optional)" style="margin-bottom: 0.5rem;">
+                                        <input type="text" id="ffCarouselPill3" name="carousel_pill_3" placeholder="Pill 3 (optional)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ffWorkoutTitle">Workout Title *</label>
+                                        <input type="text" id="ffWorkoutTitle" name="workout_title" required placeholder="Main header for the workout">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ffWorkoutEditor">Workout Content *</label>
+                                        <div id="ffEditorToolbar" style="display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+                                            <button type="button" class="btn btn-small ff-editor-btn" data-cmd="bold"><strong>B</strong></button>
+                                            <button type="button" class="btn btn-small ff-editor-btn" data-cmd="italic"><em>I</em></button>
+                                            <button type="button" class="btn btn-small ff-editor-btn" data-cmd="insertUnorderedList">• List</button>
+                                            <button type="button" class="btn btn-small ff-editor-btn" data-cmd="fontSize" data-value="2">Small</button>
+                                            <button type="button" class="btn btn-small ff-editor-btn" data-cmd="fontSize" data-value="3">Normal</button>
+                                            <button type="button" class="btn btn-small ff-editor-btn" data-cmd="fontSize" data-value="5">Large</button>
+                                        </div>
+                                        <div id="ffWorkoutEditor"
+                                             contenteditable="true"
+                                             style="min-height: 260px; border: 1px solid #d1d5db; border-radius: 6px; padding: 0.75rem; background: #fff; line-height: 1.5; overflow-y: auto;"
+                                             aria-label="Workout content editor"></div>
+                                        <input type="hidden" id="ffWorkoutHtml" name="workout_html">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" id="ffWorkoutSubmitBtn">Save to Production</button>
+                                </form>
+                            </div>
+                            <hr style="margin: 2rem 0; border: 0; border-top: 1px solid #ddd;">
+                            <h3 style="margin-bottom: 1.5rem; color: #333; font-size: 1.1rem; font-weight: 600;">Add Workout (Structured)</h3>
+                                
+                                <div id="workoutFormError" class="error-message" style="display: none; margin-bottom: 1rem; padding: 1rem; background: #f8d7da; border: 1px solid #dc3545; border-radius: 4px; color: #721c24;"></div>
+                                
+                                <form id="adminWorkoutForm" class="admin-workout-form">
+                                    <!-- Workout Type Selection -->
+                                    <div class="form-group">
+                                        <label for="workoutType">Workout Type *</label>
+                                        <select id="workoutType" name="workoutType" required>
+                                            <option value="">Select Workout Type</option>
+                                            <option value="functional_fitness">Functional Fitness</option>
+                                            <option value="core_finisher">Core Finisher</option>
+                                            <option value="strength">Strength Workouts</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Date Field (for Functional Fitness and Core Finisher) -->
+                                    <div class="form-group" id="workoutDateGroup" style="display: none;">
+                                        <label for="workoutDate">Date *</label>
+                                        <input type="date" id="workoutDate" name="workoutDate">
+                                        <div id="dateOverrideWarning" style="display: none; margin-top: 0.5rem; padding: 0.5rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404; font-size: 0.875rem;">
+                                            ⚠️ A workout already exists for this date. The new workout will override it.
+                                        </div>
+                                    </div>
+
+                                    <!-- Focus Areas (for Functional Fitness) -->
+                                    <div class="form-group" id="focusAreasGroup" style="display: none;">
+                                        <label for="workoutFocusAreas">Focus Areas *</label>
+                                        <input type="text" id="workoutFocusAreas" name="focusAreas" placeholder="e.g., Upper Body, Core, Cardio">
+                                    </div>
+
+                                    <!-- Phase Selection (for Strength Workouts) -->
+                                    <div class="form-group" id="workoutPhaseGroup" style="display: none;">
+                                        <label for="workoutPhase">Phase *</label>
+                                        <select id="workoutPhase" name="phase">
+                                            <option value="">Select Phase</option>
+                                            <option value="Phase One">Phase One</option>
+                                            <option value="Phase Two">Phase Two</option>
+                                            <option value="Phase Three">Phase Three</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Workout Name (for Strength Workouts) -->
+                                    <div class="form-group" id="workoutNameGroup" style="display: none;">
+                                        <label for="workoutName">Workout Name *</label>
+                                        <input type="text" id="workoutName" name="name" placeholder="e.g., Phase One – Day 1 (Quads / Chest-Shoulders)">
+                                    </div>
+
+                                    <!-- Primary Focus (for Strength Workouts) -->
+                                    <div class="form-group" id="workoutPrimaryFocusGroup" style="display: none;">
+                                        <label for="workoutPrimaryFocus">Primary Focus</label>
+                                        <input type="text" id="workoutPrimaryFocus" name="primaryFocus" placeholder="e.g., Quads">
+                                    </div>
+
+                                    <!-- Secondary Focus (for Strength Workouts) -->
+                                    <div class="form-group" id="workoutSecondaryFocusGroup" style="display: none;">
+                                        <label for="workoutSecondaryFocus">Secondary Focus</label>
+                                        <input type="text" id="workoutSecondaryFocus" name="secondaryFocus" placeholder="e.g., Chest-Shoulders">
+                                    </div>
+
+                                    <!-- FMP (for Strength Workouts) -->
+                                    <div class="form-group" id="workoutFMPGroup" style="display: none;">
+                                        <label for="workoutFMP">FMP</label>
+                                        <input type="text" id="workoutFMP" name="fmp" placeholder="Functional Movement Pattern">
+                                    </div>
+
+                                    <!-- Notes (for Strength Workouts) -->
+                                    <div class="form-group" id="workoutNotesGroup" style="display: none;">
+                                        <label for="workoutNotes">Notes</label>
+                                        <textarea id="workoutNotes" name="notes" rows="3" placeholder="Additional notes..."></textarea>
+                                    </div>
+
+                                    <!-- Header (for all workout types) -->
+                                    <div class="form-group">
+                                        <label for="workoutHeader">Header * <span style="font-size: 0.75rem; color: #666;">(Bold and Underlined)</span></label>
+                                        <input type="text" id="workoutHeader" name="header" required placeholder="e.g., Daily Workout">
+                                    </div>
+
+                                    <!-- Sub Headers and Exercises Section -->
+                                    <div class="form-group">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                            <label style="margin: 0;">Sub Headers & Exercises</label>
+                                            <button type="button" class="btn btn-small" id="addSubHeaderBtn">Add Sub Header</button>
+                                        </div>
+                                        <div id="subHeadersContainer">
+                                            <!-- Sub Headers with exercises will be added here dynamically -->
+                                        </div>
+                                    </div>
+
+                                    <!-- Blocks Section (for Strength Workouts - legacy) -->
+                                    <div class="form-group" id="workoutBlocksGroup" style="display: none;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                            <label style="margin: 0;">Workout Blocks</label>
+                                            <button type="button" class="btn btn-small" id="addBlockBtn">Add Block</button>
+                                        </div>
+                                        <div id="workoutBlocksContainer">
+                                            <!-- Blocks will be added here dynamically -->
+                                        </div>
+                                    </div>
+
+                                    <!-- Submit Button -->
+                                    <div class="form-group" style="text-align: center; margin-top: 2rem;">
+                                        <button type="submit" class="btn btn-primary">Create Workout</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="bodyCompositionContent" class="personal-trainer-content" style="display: none;">
+                        <h2 style="margin-bottom: 1rem; color: #333; font-size: 1.1rem; font-weight: 600; text-align: center;">Body Composition Tracker</h2>
+                        <div class="body-composition-tabs">
+                            <button class="body-composition-tab active" id="bodyCompAddInput" data-tab="add-input">Add Measurement</button>
+                            <button class="body-composition-tab" id="bodyCompLog" data-tab="log">Body Composition Log</button>
+                        </div>
+                        <div id="bodyCompAddInputContent" class="body-composition-tab-content" style="display: block;">
+                            <form id="bodyCompInputForm" class="body-comp-form">
+                                <div class="form-group">
+                                    <label for="bodyCompMeasurement">Measurement</label>
+                                    <select id="bodyCompMeasurement" name="measurement" required>
+                                        <option value="" selected disabled>Choose an option</option>
+                                        <optgroup label="Weight">
+                                            <option value="weight">Weight</option>
+                                        </optgroup>
+                                        <optgroup label="Body Fat">
+                                            <option value="body_fat_percentage">Body Fat Percentage</option>
+                                        </optgroup>
+                                        <optgroup label="Neck">
+                                            <option value="neck">Neck</option>
+                                        </optgroup>
+                                        <optgroup label="Chest">
+                                            <option value="chest_relaxed">Chest (Relaxed)</option>
+                                            <option value="chest_flexed">Chest (Flexed)</option>
+                                        </optgroup>
+                                        <optgroup label="Waist / Abdomen">
+                                            <option value="waist_smallest">Waist (Smallest Point)</option>
+                                            <option value="waist_navel">Waist (Navel Level)</option>
+                                            <option value="abdominal_circumference_relaxed">Abdominal Circumference (Largest Point Relaxed)</option>
+                                            <option value="abdominal_circumference_flexed">Abdominal Circumference (Largest Point Flexed)</option>
+                                        </optgroup>
+                                        <optgroup label="Hips">
+                                            <option value="hips">Hips</option>
+                                        </optgroup>
+                                        <optgroup label="Arms">
+                                            <option value="left_upper_arm_relaxed">Left Upper Arm (Relaxed)</option>
+                                            <option value="left_upper_arm_flexed">Left Upper Arm (Flexed)</option>
+                                            <option value="right_upper_arm_relaxed">Right Upper Arm (Relaxed)</option>
+                                            <option value="right_upper_arm_flexed">Right Upper Arm (Flexed)</option>
+                                            <option value="left_forearm">Left Forearm</option>
+                                            <option value="right_forearm">Right Forearm</option>
+                                        </optgroup>
+                                        <optgroup label="Thighs">
+                                            <option value="left_thigh_upper">Left Thigh (Upper)</option>
+                                            <option value="left_thigh_mid">Left Thigh (Mid)</option>
+                                            <option value="right_thigh_upper">Right Thigh (Upper)</option>
+                                            <option value="right_thigh_mid">Right Thigh (Mid)</option>
+                                        </optgroup>
+                                        <optgroup label="Calves">
+                                            <option value="left_calf">Left Calf</option>
+                                            <option value="right_calf">Right Calf</option>
+                                        </optgroup>
+                                        <optgroup label="Shoulders">
+                                            <option value="shoulders">Shoulders</option>
+                                        </optgroup>
+                                        <optgroup label="Custom">
+                                            <option value="custom">Add My Own</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group" id="customMeasurementGroup" style="display: none;">
+                                    <label for="customMeasurement">Custom Measurement Name</label>
+                                    <input type="text" id="customMeasurement" name="customMeasurement" placeholder="Enter your custom measurement name">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="bodyCompValue">Measurement Value</label>
+                                    <input type="number" id="bodyCompValue" name="value" step="0.01" min="0" required placeholder="Enter measurement value">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Goal Direction</label>
+                                    <div class="button-choice-group">
+                                        <button type="button" class="btn btn-choice btn-choice-left" data-value="down">
+                                            Down
+                                        </button>
+                                        <button type="button" class="btn btn-choice btn-choice-right" data-value="up">
+                                            Up
+                                        </button>
+                                        <input type="hidden" id="goalDirectionInput" name="goalDirection" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group" style="display: flex; justify-content: center; width: 100%;">
+                                    <button type="submit" class="btn btn-primary">Save Measurement</button>
+                                </div>
+                            </form>
+                        </div>
+                        <div id="bodyCompLogContent" class="body-composition-tab-content" style="display: none;">
+                            <!-- Body Comp Log content will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Workouts List -->
+            <div class="card workouts-card">
+                <div class="card-header">
+                    <h2 id="availableWorkoutsHeading">Available Workouts</h2>
+                </div>
+                <div id="workoutsCarouselContainer" class="workouts-carousel-container">
+                    <div id="workoutsCarousel" class="workouts-carousel"></div>
+                    <div class="carousel-controls">
+                        <button id="workoutsPrev" class="carousel-btn" aria-label="Previous workouts">&#10094;</button>
+                        <button id="workoutsNext" class="carousel-btn" aria-label="Next workouts">&#10095;</button>
+                    </div>
+                </div>
+                <p id="workoutsEmpty" class="loading" style="display: none;">No available workouts to display.</p>
+            </div>
+
+            <!-- Strength Workouts List -->
+            <div class="card strength-workouts-card" style="display: none;">
+                <div class="card-header">
+                    <h2 id="availableStrengthWorkoutsHeading">Available Strength Workouts</h2>
+                </div>
+                <div id="strengthWorkoutsCarouselContainer" class="workouts-carousel-container">
+                    <div id="strengthWorkoutsCarousel" class="workouts-carousel"></div>
+                    <div class="carousel-controls">
+                        <button id="strengthWorkoutsPrev" class="carousel-btn" aria-label="Previous strength workouts">&#10094;</button>
+                        <button id="strengthWorkoutsNext" class="carousel-btn" aria-label="Next strength workouts">&#10095;</button>
+                    </div>
+                </div>
+                <p id="strengthWorkoutsEmpty" class="loading" style="display: none;">No available strength workouts to display.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workout Detail Modal -->
+    <div id="workoutModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeWorkoutModal()">&times;</span>
+            <h2 id="workoutModalTitle">Workout</h2>
+            <div id="workoutModalDate" class="workout-date"></div>
+            <div id="workoutModalContent" class="workout-content"></div>
+            <div id="workoutModalError" class="error-message"></div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closePaymentModal()">&times;</span>
+            <h2>Complete Payment</h2>
+            <div id="paymentElement">
+                <!-- Stripe Elements will mount here -->
+            </div>
+            <button id="payButton" class="btn btn-primary" onclick="handlePayment()">Pay</button>
+            <div id="paymentError" class="error-message"></div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Membership Signup Wizard Modal -->
+    <div id="membershipSignupWizard" class="wizard-modal" style="display: none;">
+        <!-- Wizard content will be rendered here by membership-signup.js -->
+    </div>
+
+    <!-- Scripts (bump ?v= when app.js changes so production gets updates) -->
+    <script src="https://js.stripe.com/v3/"></script>
+    <script src="tier-access-config.js?v=20260303"></script>
+    <!-- Bump v= whenever public/app.js changes so CDN/browser load new bundle (Sharla gym PM bypass lives in app.js). -->
+    <script src="app.js?v=20260330-google-signin-hotfix"></script>
+    <script src="macro-calculator.js?v=20260303"></script>
+    <script src="membership-signup.js?v=20260328-contract-ack"></script>
+</body>
+</html>
+

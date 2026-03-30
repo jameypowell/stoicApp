@@ -1,0 +1,7015 @@
+WARNING: The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64/v8) and no specific platform was requested
+/* Global Styles */
+:root {
+    /* Stoic vibrant green (matches invoice Active pill) — use for success / active / “good” states */
+    --stoic-green: #047857;
+    --stoic-green-text: #ffffff;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Prevent any element from exceeding viewport width */
+div, section, article, aside, header, footer, main, nav {
+    max-width: 100%;
+}
+
+/* Allow images and media to scale but not exceed container */
+img, video, iframe, embed, object {
+    max-width: 100%;
+    height: auto;
+}
+
+html {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: #2d2d2d;
+    min-height: 100vh;
+    color: #333;
+    line-height: 1.6;
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 16px; /* Mobile-first: smaller padding */
+    width: 100%;
+    max-width: min(1200px, 100vw);
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+/* Mobile-first: Base styles are for mobile */
+/* Then scale up for larger screens */
+
+/* Navigation - Mobile First */
+.navbar {
+    background: #000000; /* Black background */
+    backdrop-filter: blur(10px);
+    padding: 0.5rem 0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+}
+
+.navbar .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.nav-brand {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.logo {
+    height: 70px; /* Bigger on mobile */
+    width: auto;
+    object-fit: contain;
+    max-width: 100%;
+    max-height: 70px;
+}
+
+.nav-brand h1 {
+    font-size: 1.5rem;
+    color: #1877f2;
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.logout-link {
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    font-size: 0.6rem;
+    font-weight: 400;
+    transition: color 0.2s ease;
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+.logout-link:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}
+
+.welcome-message {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: #ffffff;
+    font-size: 0.65rem;
+    overflow: visible;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    text-align: right;
+    line-height: 1.3;
+}
+
+.welcome-label {
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.8);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.user-email {
+    font-weight: 500;
+    color: #ffffff;
+    overflow: visible;
+    word-break: break-word;
+    max-width: none;
+    white-space: normal;
+}
+
+.user-details {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem; /* Smaller gap on mobile */
+    font-size: 0.75rem; /* Smaller on mobile */
+    flex-wrap: wrap; /* Allow wrapping */
+    justify-content: flex-end;
+}
+
+.subscription-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.subscription-badge.active {
+    background-color: var(--success);
+    color: white;
+}
+
+.subscription-badge.inactive {
+    background-color: var(--text-secondary);
+    color: white;
+}
+
+.current-datetime {
+    color: #ffffff;
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem; /* Smaller on mobile */
+    white-space: nowrap;
+}
+
+.user-email-old {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+/* Sections - Mobile First */
+.section {
+    padding: 1rem 0; /* Smaller padding on mobile */
+    min-height: calc(100vh - 60px); /* Adjusted for smaller navbar */
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+/* Auth Section - Mobile First */
+.auth-container {
+    max-width: 100%; /* Full width on mobile */
+    margin: 1.5rem auto; /* Smaller margin on mobile */
+    background: white;
+    padding: 1.5rem; /* Smaller padding on mobile */
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    box-sizing: border-box;
+    width: 100%;
+    overflow: hidden; /* Prevent content from overflowing */
+}
+
+.auth-logo {
+    height: 50px; /* Smaller on mobile */
+    width: auto;
+    object-fit: contain;
+    margin-bottom: 1rem; /* Smaller margin on mobile */
+    max-width: 100%;
+}
+
+.auth-container h2 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 0.5rem;
+    font-size: 1.5rem; /* Smaller on mobile */
+}
+
+.subtitle {
+    text-align: center;
+    color: #666;
+    margin-bottom: 1.5rem; /* Smaller margin on mobile */
+    font-size: 0.9rem; /* Smaller on mobile */
+}
+
+/* Tabs - Mobile First */
+.tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem; /* Smaller margin on mobile */
+    border-bottom: 2px solid #eee;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 0.875rem 0.5rem; /* Larger padding for touch */
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 0.95rem; /* Slightly smaller on mobile */
+    color: #666;
+    border-bottom: 2px solid transparent;
+    transition: all 0.3s;
+    min-height: 44px; /* Touch-friendly */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tab-btn.active {
+    color: #1877f2;
+    border-bottom-color: #1877f2;
+}
+
+.tab-btn:hover {
+    color: #1877f2;
+}
+
+/* Forms - Mobile First */
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.form-group label {
+    font-weight: 500;
+    color: #333;
+    font-size: 0.9rem; /* Smaller on mobile */
+    text-align: left;
+}
+
+.form-group input,
+.form-group select {
+    padding: 0.875rem; /* Larger for touch */
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box; /* Include padding and border in width calculation */
+    min-height: 44px; /* Touch-friendly */
+    -webkit-appearance: none; /* Remove iOS styling */
+    appearance: none;
+    background-color: #ffffff;
+    color: #111827;
+    cursor: pointer;
+}
+
+.form-group select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    padding-right: 2.5rem;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #1877f2;
+}
+
+.form-group select:hover {
+    border-color: #9ca3af;
+}
+
+/* Buttons - Mobile First (Touch-friendly) */
+.btn {
+    padding: 0.65rem 1.2rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-height: 40px;
+    width: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-primary {
+    background: #1877f2;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #166fe5;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(24, 119, 242, 0.4);
+}
+
+.btn-google {
+    background: #ffffff;
+    color: #3c4043;
+    border: 1px solid #dadce0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+.btn-google:hover {
+    background: #f8f9fa;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+.btn-google svg {
+    flex-shrink: 0;
+}
+
+/* Google Auth Section */
+.google-auth-section {
+    text-align: center;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Email Password Section */
+.email-password-section {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.email-password-link {
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.email-password-link a {
+    color: #666;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.2s;
+}
+
+.email-password-link a:hover {
+    color: #333;
+    text-decoration: underline;
+}
+
+.back-to-google-link {
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.back-to-google-link a {
+    color: #666;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.2s;
+}
+
+.back-to-google-link a:hover {
+    color: #333;
+    text-decoration: underline;
+}
+
+/* Forgot password link */
+.forgot-password-link {
+    margin-top: 0.75rem;
+    text-align: center;
+}
+
+.forgot-password-link a {
+    color: #666;
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: color 0.2s;
+}
+
+.forgot-password-link a:hover {
+    color: #333;
+    text-decoration: underline;
+}
+
+.back-to-login-link {
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.back-to-login-link a {
+    color: #666;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.2s;
+}
+
+.back-to-login-link a:hover {
+    color: #333;
+    text-decoration: underline;
+}
+
+/* Success message */
+.success-message {
+    background: #d4edda;
+    color: #155724;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    border: 1px solid #c3e6cb;
+}
+
+.form-help-text {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.auth-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 1rem 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #ddd;
+}
+
+.auth-divider span {
+    padding: 0 1rem;
+    background: #ffffff;
+}
+
+.btn-secondary {
+    background: #ffffff;
+    color: #000000;
+}
+
+.btn-secondary:hover {
+    background: #f3f4f6;
+    color: #000000;
+}
+
+/* Cards - Mobile First */
+.card {
+    background: white;
+    padding: 1rem;
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    overflow-y: auto;
+    word-wrap: break-word;
+}
+
+.card h2 {
+    color: #333;
+    margin-bottom: 1rem; /* Smaller margin on mobile */
+    font-size: 1.25rem; /* Smaller on mobile */
+}
+
+.subscription-card {
+    margin-bottom: 0;
+}
+
+.gym-membership-card {
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+    grid-column: 1 / -1;
+    max-width: 100%;
+    position: relative;
+    overflow-x: hidden;
+}
+
+.gym-membership-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    border-radius: 12px;
+    pointer-events: none;
+}
+
+.coming-soon-message {
+    background: rgba(34, 197, 94, 0.9);
+    color: white;
+    padding: 0.35rem 2.5rem;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    text-align: center;
+    min-width: 200px;
+    line-height: 1.2;
+}
+
+.subscription-card-clickable {
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.subscription-card-clickable:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+}
+
+.dashboard-card {
+    margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: #404040 !important;
+}
+
+.dashboard-card h2 {
+    text-align: center;
+    margin: 0;
+    color: #ffffff;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+    margin-bottom: 1rem;
+}
+
+.dashboard-toggle-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1877f2;
+    transition: transform 0.3s ease;
+    position: absolute;
+    right: 0;
+}
+
+.dashboard-toggle-btn.expanded {
+    transform: rotate(180deg);
+}
+
+.dashboard-toggle-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.dashboard-summary-wrapper {
+    position: relative;
+}
+
+.dashboard-carousel-controls {
+    position: absolute;
+    bottom: 8px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    z-index: 10;
+    padding: 0 0.25rem;
+}
+
+.dashboard-carousel-controls .carousel-btn {
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    line-height: 1;
+    pointer-events: auto;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* All items visible in carousel mode */
+.dashboard-summary.collapsed .dashboard-item {
+    display: flex;
+}
+
+/* Dashboard Instructions Styles */
+.dashboard-instructions-collapsible {
+    position: relative;
+    padding: 0 !important;
+    overflow: hidden;
+    background: #2d3e50;
+    border-radius: 4px;
+    margin-top: 1.5rem;
+    border-left: 4px solid #1877f2;
+}
+
+.dashboard-instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    gap: 0.75rem;
+}
+
+.dashboard-instructions-header:hover {
+    background: rgba(24, 119, 242, 0.15);
+}
+
+.dashboard-instructions-header p {
+    margin: 0;
+    color: #ffffff;
+    line-height: 1.6;
+    font-size: 0.75rem;
+    flex: 1;
+}
+
+.dashboard-instructions-header .dashboard-expand-btn {
+    flex-shrink: 0;
+    color: #1877f2;
+    margin-top: 0.125rem;
+}
+
+.dashboard-instructions-content {
+    padding: 0 1rem 1rem 1rem;
+    animation: slideDown 0.3s ease-out;
+}
+
+.dashboard-instructions-content p {
+    margin: 0 0 0.75rem 0;
+    color: #e0e0e0;
+    line-height: 1.6;
+    font-size: 0.9rem;
+}
+
+.dashboard-instructions-content p:last-child {
+    margin-bottom: 0;
+}
+
+/* Top-of-page banner (news ribbon) - shared between home and app */
+.news-ribbon {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 101;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+.news-ribbon-track {
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    animation: news-marquee 16s linear infinite;
+    white-space: nowrap;
+}
+.news-ribbon-track span {
+    display: inline-block;
+    flex-shrink: 0;
+    padding: 0 3rem;
+    white-space: nowrap;
+}
+.news-ribbon a { text-decoration: underline; }
+@keyframes news-marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+
+/* Ensure content starts below fixed banner */
+.news-ribbon + .navbar,
+.news-ribbon + nav,
+.news-ribbon + .header {
+    margin-top: 40px;
+}
+
+.dashboard-expand-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1877f2;
+    transition: transform 0.3s ease;
+}
+
+.dashboard-expand-btn.expanded {
+    transform: rotate(180deg);
+}
+
+.dashboard-expand-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Dashboard summary layout - always two tiles per row */
+.dashboard-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+/* Carousel mode when collapsed */
+.dashboard-summary.collapsed {
+    display: flex;
+    grid-template-columns: none;
+    grid-auto-rows: none;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    position: relative;
+    -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-summary.collapsed::-webkit-scrollbar {
+    height: 8px;
+}
+
+.dashboard-summary.collapsed::-webkit-scrollbar-thumb {
+    background: rgba(24, 119, 242, 0.4);
+    border-radius: 4px;
+}
+
+.dashboard-summary.collapsed .dashboard-item {
+    flex: 0 0 auto;
+    min-width: calc(50% - 0.25rem);
+    max-width: calc(50% - 0.25rem);
+    width: calc(50% - 0.25rem);
+    height: auto;
+}
+
+/* Dashboard tiles - softer charcoal background with subtle blue glow */
+.dashboard-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.dashboard-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 0.75rem 0.85rem;
+    border-radius: 0.35rem; /* less rounded corners */
+    text-decoration: none;
+    background-color: #1a1a1a; /* softer charcoal */
+    color: #ffffff;
+    border: 1px solid #1877f2;
+    box-shadow: none;
+    transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease, color 0.18s ease;
+    min-height: 68px;
+    box-sizing: border-box;
+}
+
+.dashboard-item .summary-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.88); /* softer white */
+    opacity: 0.9;
+    line-height: 1.2;
+    white-space: normal;
+    overflow-wrap: break-word;
+}
+
+.dashboard-item .summary-value {
+    font-size: 0.70rem;
+    font-weight: 400;
+    color: rgba(200, 200, 200, 0.75); /* soft gray */
+    margin-top: 0.12rem;
+    line-height: 1.25;
+    white-space: normal;
+    overflow-wrap: break-word;
+}
+
+.dashboard-item:hover,
+.dashboard-item:focus-visible {
+    background-color: #202020;
+    border-color: #1877f2;
+    box-shadow: none;
+    transform: translateY(-1px);
+}
+
+.dashboard-item.clickable {
+    cursor: pointer;
+}
+
+/* Locked dashboard tiles when app subscription is expired */
+.dashboard-item.locked {
+    opacity: 0.55;
+    border-color: #555;
+    position: relative;
+}
+.dashboard-item.locked::after {
+    content: '🔒';
+    position: absolute;
+    top: 0.35rem;
+    right: 0.45rem;
+    font-size: 0.75rem;
+}
+.dashboard-item.locked:hover,
+.dashboard-item.locked:focus-visible {
+    opacity: 0.7;
+    border-color: #666;
+}
+
+/* Dashboard + membership section aligned to home.html style */
+.dashboard-card,
+.gym-membership-card,
+.subscription-card {
+    background: #0f172a;
+    border: 1px solid rgba(212, 175, 55, 0.22);
+    border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(2, 6, 23, 0.35);
+}
+
+.dashboard-card h2,
+.gym-membership-card h2,
+.subscription-card h2 {
+    color: #ffffff;
+}
+
+.dashboard-header {
+    margin-bottom: 1.1rem;
+}
+
+.dashboard-instructions-collapsible {
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-left: 3px solid #d4af37;
+    border-radius: 12px;
+}
+
+.dashboard-instructions-header:hover {
+    background: rgba(212, 175, 55, 0.08);
+}
+
+.dashboard-instructions-header p {
+    color: #f3f4f6;
+}
+
+.dashboard-instructions-content p,
+.dashboard-instructions-content ul,
+.dashboard-instructions-content li {
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.gym-membership-address {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.76);
+    margin: 0;
+}
+
+/* Keep carousel tiles unchanged; only restyle gym account tabs/invoice internals */
+.gym-membership-tabs-container .card-header-tabs {
+    background: #111827;
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    border-radius: 10px;
+    padding: 0.3rem;
+    gap: 0.35rem;
+}
+
+.gym-membership-tabs-container .card-tab {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.84);
+    border: 1px solid transparent;
+    border-right: 1px solid transparent;
+    border-radius: 8px;
+    padding: 0.5rem 0.85rem;
+    font-weight: 600;
+}
+
+.gym-membership-tabs-container .card-tab:hover {
+    background: rgba(212, 175, 55, 0.1);
+    color: #ffffff;
+}
+
+.gym-membership-tabs-container .card-tab.active {
+    background: #d4af37;
+    color: #111111;
+    border: 1px solid #d4af37;
+    margin-bottom: 0;
+}
+
+.gym-membership-tabs-container .card-tab.active::after {
+    display: none;
+}
+
+.gym-membership-card .membership-invoice {
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    color: #f3f4f6;
+}
+
+.gym-membership-card .membership-invoice p,
+.gym-membership-card .membership-invoice li,
+.gym-membership-card .membership-invoice label,
+.gym-membership-card .membership-invoice h3,
+.gym-membership-card .membership-invoice h4,
+.gym-membership-card .membership-invoice span:not(.invoice-status) {
+    color: #f3f4f6 !important;
+}
+
+.gym-membership-card .invoice-header,
+.gym-membership-card .invoice-footer {
+    border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+.gym-membership-card .invoice-table {
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.gym-membership-card .invoice-table thead {
+    background: rgba(15, 23, 42, 0.95);
+}
+
+.gym-membership-card .invoice-table th,
+.gym-membership-card .invoice-table td {
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Household / My Members tables — match Account Details (light text on slate) */
+.gym-membership-card .membership-invoice .invoice-table th {
+    color: rgba(255, 255, 255, 0.82) !important;
+    background: rgba(15, 23, 42, 0.95) !important;
+}
+
+.gym-membership-card .membership-invoice .invoice-table td {
+    color: rgba(243, 244, 246, 0.95) !important;
+}
+
+.gym-membership-card .membership-invoice .invoice-table tbody tr {
+    border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.gym-membership-card .membership-invoice .invoice-table tbody tr.primary-row {
+    background-color: rgba(212, 175, 55, 0.1) !important;
+}
+
+.gym-membership-card .membership-invoice .invoice-table tfoot {
+    background: rgba(15, 23, 42, 0.92) !important;
+    border-top-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+.gym-membership-card .membership-invoice .invoice-table .total-label,
+.gym-membership-card .membership-invoice .invoice-table .total-amount {
+    color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.gym-membership-card .membership-invoice .member-email {
+    color: rgba(255, 255, 255, 0.55) !important;
+}
+
+.gym-membership-card .membership-invoice .primary-label {
+    background: rgba(212, 175, 55, 0.18) !important;
+    color: #fde68a !important;
+    border: 1px solid rgba(212, 175, 55, 0.35);
+}
+
+/* Callouts on gym tabs (household, etc.) */
+.gym-membership-card .membership-invoice .gym-panel-callout {
+    border-radius: 8px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.gym-membership-card .membership-invoice .gym-panel-callout--success {
+    background: rgba(4, 120, 87, 0.18) !important;
+    border-color: rgba(52, 211, 153, 0.35) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-panel-callout--success p {
+    color: rgba(209, 250, 229, 0.95) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-panel-callout--warning {
+    background: rgba(180, 83, 9, 0.2) !important;
+    border-color: rgba(251, 191, 36, 0.35) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-panel-callout--warning p {
+    color: rgba(254, 243, 199, 0.95) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-panel-callout--info {
+    background: rgba(59, 130, 246, 0.12) !important;
+    border-color: rgba(96, 165, 250, 0.35) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-panel-callout--info span,
+.gym-membership-card .membership-invoice .gym-panel-callout--info p {
+    color: rgba(224, 242, 254, 0.95) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-panel-callout--action {
+    background: rgba(180, 83, 9, 0.15) !important;
+    border-color: rgba(251, 146, 60, 0.35) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-panel-callout--action p {
+    color: rgba(254, 243, 199, 0.92) !important;
+}
+
+/* Gym Hours schedule inside membership card — dark slate like Account Details */
+.gym-membership-card .membership-invoice .gym-schedule-header {
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-title {
+    color: #ffffff !important;
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-address {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-day-card {
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-day-card.gym-schedule-day-weekend,
+.gym-membership-card .membership-invoice .gym-schedule-day-card.gym-schedule-day-sunday {
+    background: #1e293b;
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-day-card.gym-schedule-day-weekend .gym-schedule-day-col {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-day-card.gym-schedule-day-sunday .gym-schedule-day-col {
+    background: rgba(244, 114, 182, 0.12);
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-day-col {
+    background: rgba(0, 0, 0, 0.22);
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-day-name {
+    color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-slot {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-time {
+    color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-empty {
+    color: rgba(255, 255, 255, 0.45) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-day-card.gym-schedule-day-sunday .gym-schedule-empty {
+    color: rgba(255, 255, 255, 0.45) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-slot-evening {
+    background: rgba(254, 243, 199, 0.1);
+    border: 1px solid rgba(250, 204, 21, 0.35);
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-slot-evening::after {
+    color: #fde047;
+}
+
+.gym-membership-card .membership-invoice .gym-schedule-footer {
+    margin-top: 1.25rem;
+    padding: 1rem 1.25rem;
+    background: rgba(212, 175, 55, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    border-left: 3px solid #d4af37;
+    border-radius: 8px;
+    font-size: 0.9375rem;
+    color: rgba(255, 255, 255, 0.88) !important;
+    line-height: 1.6;
+}
+
+/* Shared tab section titles (Payment History, Buddy Pass, My Members, etc.) */
+.gym-membership-card .membership-invoice .gym-tab-section-title {
+    color: #ffffff !important;
+}
+
+.gym-membership-card .membership-invoice .gym-tab-section-sub {
+    color: rgba(255, 255, 255, 0.65) !important;
+}
+
+/* Payment history & buddy pass dynamic rows */
+.gym-membership-card .membership-invoice .gym-tab-muted-msg {
+    color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-payment-history-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.gym-membership-card .membership-invoice .gym-payment-history-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: rgba(15, 23, 42, 0.65);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gym-membership-card .membership-invoice .gym-payment-history-row-title {
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-payment-history-row-meta {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.55) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-payment-history-row-amount {
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-payment-history-row-status {
+    font-size: 0.75rem;
+    text-transform: capitalize;
+}
+
+.gym-membership-card .membership-invoice .gym-payment-history-empty,
+.gym-membership-card .membership-invoice .gym-payment-history-login {
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7) !important;
+    font-size: 0.875rem;
+}
+
+.gym-membership-card .membership-invoice .gym-payment-history-error {
+    padding: 1rem;
+    background: rgba(127, 29, 29, 0.25);
+    border-radius: 8px;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    color: #fecaca !important;
+    font-size: 0.875rem;
+}
+
+.gym-membership-card .membership-invoice .gym-payment-history-add-pm {
+    padding: 0.375rem 0.75rem;
+    background: rgba(59, 130, 246, 0.25);
+    color: #e0f2fe !important;
+    border: 1px solid rgba(96, 165, 250, 0.45);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.gym-membership-card .membership-invoice .buddy-pass-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gym-membership-card .membership-invoice .buddy-pass-row strong {
+    color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.gym-membership-card .membership-invoice .buddy-pass-row-meta {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.55) !important;
+}
+
+.gym-membership-card .membership-invoice .buddy-pass-edit {
+    color: #93c5fd !important;
+}
+
+.gym-membership-card .membership-invoice .buddy-pass-cancel {
+    color: #fca5a5 !important;
+}
+
+.gym-membership-card .membership-invoice .buddy-pass-section-title {
+    color: rgba(255, 255, 255, 0.88) !important;
+}
+
+/* Buddy pass success / error boxes */
+.gym-membership-card .membership-invoice .gym-buddy-alert--error {
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+    background: rgba(127, 29, 29, 0.3);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    color: #fecaca !important;
+}
+
+.gym-membership-card .membership-invoice .gym-buddy-alert--success {
+    padding: 1rem;
+    background: rgba(4, 120, 87, 0.22);
+    border: 1px solid rgba(52, 211, 153, 0.35);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.gym-membership-card .membership-invoice .gym-buddy-alert--success p {
+    color: rgba(209, 250, 229, 0.95) !important;
+}
+
+.gym-membership-card .membership-invoice .gym-buddy-alert--success a {
+    color: #6ee7b7 !important;
+}
+
+.gym-membership-card .gym-contract-term-panel {
+    background: linear-gradient(145deg, #0f172a 0%, #111827 55%, #1f2937 100%) !important;
+    border: 1px solid rgba(212, 175, 55, 0.28) !important;
+    box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35) !important;
+}
+
+/* Dark panel: keep inline “paper” colors from winning — text must stay light on this background */
+.gym-membership-card .gym-contract-term-panel [style*="color: #0f172a"],
+.gym-membership-card .gym-contract-term-panel [style*="color:#0f172a"] {
+    color: #ffffff !important;
+}
+
+/* Keep all My Account tab internals high-contrast/readable */
+.gym-membership-card .membership-invoice input,
+.gym-membership-card .membership-invoice select,
+.gym-membership-card .membership-invoice textarea {
+    background: #0f172a;
+    color: #f3f4f6;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Inline dark text values become readable on dark cards */
+.gym-membership-card .membership-invoice [style*="color: #111827"],
+.gym-membership-card .membership-invoice [style*="color: #18181b"],
+.gym-membership-card .membership-invoice [style*="color: #374151"],
+.gym-membership-card .membership-invoice [style*="color: #3f3f46"],
+.gym-membership-card .membership-invoice [style*="color: #52525b"],
+.gym-membership-card .membership-invoice [style*="color: #6b7280"],
+.gym-membership-card .membership-invoice [style*="color: #71717a"],
+.gym-membership-card .membership-invoice [style*="color:#111827"],
+.gym-membership-card .membership-invoice [style*="color:#18181b"],
+.gym-membership-card .membership-invoice [style*="color:#374151"],
+.gym-membership-card .membership-invoice [style*="color:#3f3f46"],
+.gym-membership-card .membership-invoice [style*="color:#52525b"],
+.gym-membership-card .membership-invoice [style*="color:#6b7280"],
+.gym-membership-card .membership-invoice [style*="color:#71717a"] {
+    color: #f3f4f6 !important;
+}
+
+/* Inline white/light pills keep dark text for contrast */
+.gym-membership-card .membership-invoice [style*="background: #fff"],
+.gym-membership-card .membership-invoice [style*="background:#fff"],
+.gym-membership-card .membership-invoice [style*="background: white"],
+.gym-membership-card .membership-invoice [style*="background:white"],
+.gym-membership-card .membership-invoice [style*="background: #f8fafc"],
+.gym-membership-card .membership-invoice [style*="background:#f8fafc"] {
+    color: #111111 !important;
+}
+
+/* White chips on dark invoice: must beat span:not(.invoice-status) above (which forces #f3f4f6 on all spans) */
+.gym-membership-card .membership-invoice span[style*="background: #fff"],
+.gym-membership-card .membership-invoice span[style*="background:#fff"],
+.gym-membership-card .membership-invoice span[style*="background: white"],
+.gym-membership-card .membership-invoice span[style*="background:white"] {
+    color: #27272a !important;
+}
+
+/* Status pills in gym invoice (literal hex — beats inherited / reset rules) */
+.gym-membership-card .membership-invoice span.invoice-status.active {
+    background-color: #047857 !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    box-shadow: 0 1px 2px rgba(4, 120, 87, 0.45);
+}
+
+.gym-membership-card .membership-invoice span.invoice-status.status-inactive {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+    border: 1px solid #fecaca !important;
+}
+
+/* Subdued secondary action on dark invoice — do not use inline #374151 (matches reset selectors and kills contrast) */
+.gym-membership-card .membership-invoice .btn-gym-muted {
+    padding: 0.5rem 1rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    background: rgba(255, 255, 255, 0.09) !important;
+    color: rgba(255, 255, 255, 0.92) !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    min-height: auto !important;
+}
+
+.gym-membership-card .membership-invoice .btn-gym-muted:hover {
+    background: rgba(255, 255, 255, 0.14) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Ensure Admin tile uses the same stacked layout */
+#dashboardAdmin .summary-label {
+    display: block;
+}
+
+#dashboardAdmin .summary-value {
+    display: block;
+    margin-top: 0.12rem;
+}
+
+/* Nutrition Coach (Personal Trainer) light-theme font tuning - scoped */
+#personalTrainerContent h1 {
+    font-size: 1.8rem !important;
+    color: #333333;
+}
+
+#personalTrainerContent h2 {
+    font-size: 1.1rem !important;
+    color: #333333;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+#personalTrainerContent h3 {
+    font-size: 0.95rem !important;
+    color: #333333;
+    font-weight: 600;
+}
+
+#personalTrainerContent p {
+    font-size: 0.85rem !important;
+    color: #444444;
+    line-height: 1.4;
+}
+
+#personalTrainerContent label {
+    font-size: 0.85rem !important;
+    font-weight: 600;
+    color: #333333;
+}
+
+#personalTrainerContent table th,
+#personalTrainerContent table td {
+    font-size: 0.8rem !important;
+    color: #444444;
+}
+
+#personalTrainerContent .radio-group label span {
+    font-size: 0.85rem !important;
+    color: #333333;
+}
+
+#personalTrainerContent select,
+#personalTrainerContent input[type="number"],
+#personalTrainerContent input[type="text"] {
+    font-size: 0.85rem !important;
+}
+
+#personalTrainerContent button.btn-primary,
+#personalTrainerContent button.btn-secondary {
+    font-size: 0.9rem !important;
+}
+
+.summary-item.clickable {
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.summary-item.clickable:hover {
+    transform: scale(1.02);
+}
+
+.workout-locked-clickable {
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.workout-locked-clickable:hover {
+    box-shadow: 0 6px 20px rgba(220, 38, 38, 0.2);
+    transform: translateY(-2px);
+}
+
+.dashboard-layout {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-areas:
+        "dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard"
+        "gym gym gym gym gym gym gym gym gym gym gym gym"
+        "subscription subscription subscription subscription subscription subscription subscription subscription subscription subscription subscription subscription"
+        "today today today today today today today today today today today today";
+    row-gap: 0.25rem;
+    column-gap: 1rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+.subscription-card {
+    grid-area: subscription;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+.gym-membership-card {
+    grid-area: gym;
+    width: 100%;
+}
+
+.dashboard-card {
+    grid-area: dashboard;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+.today-workout-card {
+    grid-area: today;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+.workouts-card {
+    margin-top: 0.25rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+.workouts-carousel-container {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.workouts-carousel {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    padding-bottom: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.workouts-carousel::-webkit-scrollbar {
+    height: 8px;
+}
+
+.workouts-carousel::-webkit-scrollbar-thumb {
+    background: rgba(24, 119, 242, 0.4);
+    border-radius: 4px;
+}
+
+.carousel-controls {
+    position: absolute;
+    bottom: 8px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    z-index: 10;
+    padding: 0 0.25rem;
+}
+
+.carousel-controls .carousel-btn {
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    line-height: 1;
+    pointer-events: auto;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: #1877f2;
+    color: #ffffff;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.carousel-btn {
+    background: #1877f2;
+    color: #ffffff;
+    border: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.carousel-btn:hover {
+    background: #166fe5;
+}
+
+.carousel-card {
+    background: #f8f9fa;
+    border-radius: 10px;
+    border: 1px solid #e0e0e0;
+    min-width: 190px;
+    max-width: calc(50vw - 1rem);
+    padding: 1.6rem 0.85rem 1rem;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    word-wrap: break-word;
+    gap: 0.4rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    position: relative;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.carousel-card.selected {
+    border-color: #1877f2;
+    box-shadow: 0 4px 12px rgba(24, 119, 242, 0.3);
+}
+
+.carousel-card .badge {
+    position: absolute;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    z-index: 1;
+}
+
+.today-badge {
+    top: 10px;
+    right: 14px;
+    background: #1877f2;
+    color: #fff;
+}
+
+.locked-badge {
+    top: 10px;
+    right: 14px;
+    background: #a11a16;
+    color: #fff;
+}
+
+.carousel-card .workout-date {
+    margin-bottom: 0.15rem;
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.carousel-focus {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.carousel-focus-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    width: 100%;
+}
+
+.carousel-focus-line {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1f2937;
+    line-height: 1.15;
+}
+
+.carousel-card h3 {
+    font-size: 0.9rem;
+    margin: 0;
+    color: #333;
+}
+
+.carousel-card p {
+    margin: 0;
+    color: #555;
+    font-size: 0.7rem;
+    line-height: 1.4;
+}
+
+.carousel-card .upgrade-note {
+    font-size: 0.65rem;
+    color: #a11a16;
+    font-style: italic;
+}
+
+.carousel-card .btn-small {
+    align-self: flex-start;
+    font-size: 0.75rem;
+    margin-top: 0.3rem;
+}
+
+.subscription-summary {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    align-items: stretch;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.summary-item {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    word-wrap: break-word;
+}
+
+.summary-item.tier-blue {
+    background: #e5efff;
+}
+
+.summary-item.tier-blue .summary-value {
+    color: #1d4ed8;
+}
+
+.summary-item.status-active {
+    background: var(--stoic-green);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 1px 2px rgba(4, 120, 87, 0.3);
+}
+
+.summary-item.status-active .summary-label {
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.summary-item.status-active .summary-value {
+    color: var(--stoic-green-text);
+    font-weight: 600;
+}
+
+.summary-item.status-inactive {
+    background: #fee2e2;
+}
+
+.summary-item.status-inactive .summary-value {
+    color: #991b1b;
+}
+
+.summary-item.status-overdue {
+    background: #fee2e2;
+}
+
+.summary-item.status-overdue .summary-value {
+    color: #991b1b;
+}
+
+.summary-item.status-canceled {
+    background: #fee2e2;
+}
+
+.summary-item.status-canceled .summary-value {
+    color: #991b1b;
+}
+
+.summary-item.expires-normal {
+    background: var(--stoic-green);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 1px 2px rgba(4, 120, 87, 0.3);
+}
+
+.summary-item.expires-normal .summary-label {
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.summary-item.expires-normal .summary-value {
+    color: var(--stoic-green-text);
+    font-weight: 600;
+}
+
+.summary-item.expires-soon {
+    background: #fed7aa;
+}
+
+.summary-item.expires-soon .summary-value {
+    color: #9a3412;
+}
+
+.summary-item.expires-expired {
+    background: #fee2e2;
+}
+
+.summary-item.expires-expired .summary-value {
+    color: #991b1b;
+}
+
+.summary-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    white-space: nowrap;
+    font-weight: bold;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.summary-value {
+    font-size: 0.8rem;
+    font-weight: normal;
+    color: #888;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+.subscription-description-small {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: #555;
+}
+
+.subscription-renewal-notice {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background: #f0fdf4;
+    border-left: 3px solid #047857;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: #065f46;
+    line-height: 1.4;
+}
+
+
+.subscription-renewal-notice .renewal-notice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.subscription-renewal-notice .renewal-notice-header:hover {
+    opacity: 0.8;
+}
+
+.subscription-renewal-notice .cancel-link {
+    color: #dc2626;
+    text-decoration: underline;
+    font-weight: 500;
+    cursor: pointer;
+    margin-left: 0.25rem;
+}
+
+.subscription-renewal-notice .cancel-link:hover {
+    color: #b91c1c;
+    text-decoration: none;
+}
+
+.subscription-options-container {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(4, 120, 87, 0.25);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+.subscription-options-container .tiers-container {
+    margin-top: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.today-workout-card {
+    margin-top: 0;
+}
+
+.today-workout-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+.today-workout-body {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1rem;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #333;
+    border: 1px solid #e0e0e0;
+    overflow-x: auto;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    word-wrap: break-word;
+}
+
+.today-workout-locked {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: #fff1f0;
+    padding: 1rem;
+    border-radius: 10px;
+    border: 1px solid #ffc9c2;
+}
+
+.today-workout-locked p {
+    margin: 0;
+    color: #a11a16;
+    font-size: 0.9rem;
+}
+
+.today-workout-locked .btn {
+    align-self: start;
+}
+
+.workout-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.workout-section-duration {
+    font-weight: 600;
+    color: #111111;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    text-decoration: underline;
+}
+
+.workout-section-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    list-style: disc;
+}
+
+.workout-section-list li {
+    font-size: 0.9rem;
+    color: #374151;
+    line-height: 1.5;
+}
+
+.workout-subsection {
+    margin-bottom: 1.5rem;
+}
+
+.workout-subsection:last-child {
+    margin-bottom: 0;
+}
+
+.workout-subsection-heading {
+    font-size: 0.8rem;
+    color: #111827;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.today-workout-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.today-workout-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0.25rem;
+}
+
+.info-pill {
+    background: #e5efff;
+    color: #1d4ed8;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    line-height: 1.2;
+    max-width: 100%;
+    text-align: center;
+}
+
+.today-workout-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.today-workout-date {
+    font-size: 0.85rem;
+    color: #1877f2;
+    font-weight: 600;
+}
+
+.today-workout-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.btn-small {
+    width: auto;
+    min-height: 36px;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.9rem;
+}
+
+.no-subscription {
+    text-align: center;
+    color: #666;
+    padding: 2rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.subscription-info {
+    background: #f8f9fa;
+    padding: 1rem; /* Smaller padding on mobile */
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.subscription-info h3 {
+    color: #1877f2;
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem; /* Smaller on mobile */
+}
+
+.subscription-info p {
+    color: #666;
+    margin: 0.5rem 0;
+    font-size: 0.9rem; /* Smaller on mobile */
+}
+
+.subscription-description {
+    color: #555 !important;
+    font-style: italic;
+    margin: 0.75rem 0 !important;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 0.75rem;
+}
+
+/* Tiers */
+.tiers-container h3 {
+    margin-bottom: 0.5rem;
+    text-align: center;
+    color: #333;
+}
+
+.tiers-container {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+/* Upgrade message and collapsible plans (when no active subscription) */
+.tiers-container-upgrade .upgrade-message {
+    margin: 0 0 1rem 0;
+    font-size: 0.9375rem;
+    color: #374151;
+    line-height: 1.5;
+}
+
+.tiers-container-upgrade .upgrade-plans-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #1d4ed8;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.tiers-container-upgrade .upgrade-plans-toggle:hover {
+    background: #dbeafe;
+    border-color: #93c5fd;
+}
+
+.tiers-container-upgrade .upgrade-plans-toggle svg {
+    flex-shrink: 0;
+    transition: transform 0.3s ease;
+}
+
+.tiers-container-upgrade .upgrade-plans-content {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* Toggle button for subscription options */
+#toggleSubscriptionOptions {
+    transition: background-color 0.2s ease;
+}
+
+#toggleSubscriptionOptionsIcon {
+    transition: transform 0.3s ease;
+}
+
+/* Current tier highlighting */
+.tier-card.current-tier {
+    border-color: #0284c7;
+    background: #f0f9ff;
+}
+
+.tier-card.current-tier h4 {
+    color: #0369a1;
+    font-weight: 600;
+}
+
+.tiers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(124px, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+}
+
+.tier-card {
+    background: #f8f9fa;
+    padding: 0.75rem;
+    border-radius: 8px;
+    text-align: center;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s;
+    min-width: 124px;
+    width: 100%;
+    max-width: 100%;
+    min-height: auto;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    overflow-y: auto;
+    word-wrap: break-word;
+}
+
+/* Order tier cards: tier 1 and 2 on top row, tier 3 and 4 on bottom row */
+.tier-order-1 {
+    order: 1;
+}
+
+.tier-order-2 {
+    order: 2;
+}
+
+.tier-order-3 {
+    order: 3;
+}
+
+.tier-order-4 {
+    order: 4;
+}
+
+.tier-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.tier-card.featured {
+    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+    color: #0369a1;
+    border-color: #0284c7;
+}
+
+.tier-card.featured h4,
+.tier-card.featured .price,
+.tier-card.featured p,
+.tier-card.featured .tier-description {
+    color: #0369a1;
+}
+
+.tier-card.featured .price {
+    color: #0284c7;
+}
+
+/* Highest tier upgrade - inverted colors to stand out */
+.tier-card.highest-tier-upgrade {
+    background: #1877f2;
+    color: white;
+    border-color: #166fe5;
+}
+
+.tier-card.highest-tier-upgrade h4,
+.tier-card.highest-tier-upgrade .price,
+.tier-card.highest-tier-upgrade p,
+.tier-card.highest-tier-upgrade .tier-description {
+    color: white;
+}
+
+.tier-card.highest-tier-upgrade .price {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.tier-card.highest-tier-upgrade .tier-description small {
+    color: white !important;
+    opacity: 0.95;
+}
+
+.tier-card.highest-tier-upgrade:hover {
+    background: #166fe5;
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(24, 119, 242, 0.4);
+}
+
+/* Button for highest tier upgrade - inverted colors */
+.btn-highest-tier {
+    background: white;
+    color: #1877f2;
+    border: 2px solid white;
+}
+
+.btn-highest-tier:hover {
+    background: #f0f9ff;
+    color: #166fe5;
+    border-color: #f0f9ff;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 255, 255, 0.3);
+}
+
+/* Downgrade button - distinct color to show it's different */
+.btn-downgrade {
+    background: #6c757d;
+    color: white;
+    border: 2px solid #6c757d;
+}
+
+.btn-downgrade:hover {
+    background: #5a6268;
+    color: white;
+    border-color: #5a6268;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4);
+}
+
+/* Cancel button - matches warning message colors */
+.btn-cancel {
+    background: #ffc107;
+    color: #856404;
+    border: 2px solid #ffc107;
+}
+
+.btn-cancel:hover {
+    background: #ffb300;
+    color: #856404;
+    border-color: #ffb300;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 193, 7, 0.4);
+}
+
+.tier-card h4 {
+    font-size: 0.9rem; /* Smaller on mobile */
+    margin-bottom: 0.5rem;
+    color: #333;
+    white-space: nowrap;
+}
+
+.price {
+    font-size: 1.1rem; /* Smaller on mobile */
+    font-weight: bold;
+    color: #1877f2;
+    margin-bottom: 0.5rem;
+    white-space: nowrap;
+}
+
+.tier-description {
+    color: #666;
+    font-size: 0.65rem; /* Smaller on mobile */
+    line-height: 1.5;
+    margin: 0.5rem 0;
+    font-style: italic;
+    /* Remove line-clamp to show full description */
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.tier-card p {
+    color: #666;
+    margin-bottom: 0.75rem;
+    font-size: 0.7rem;
+    flex-grow: 1; /* Allow description to expand */
+}
+
+.tier-card .btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    min-height: 32px;
+    width: 100%;
+}
+
+/* Workouts List - Mobile First */
+.workouts-list {
+    display: grid;
+    grid-template-columns: 1fr; /* Single column on mobile */
+    gap: 0.75rem; /* Smaller gap on mobile */
+}
+
+.workout-card {
+    background: #f8f9fa;
+    padding: 1.25rem; /* Smaller padding on mobile */
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+    cursor: pointer;
+    transition: all 0.3s;
+    width: 100%;
+    min-height: 80px; /* Minimum touch target */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.workout-card:hover {
+    border-color: #1877f2;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(24, 119, 242, 0.2);
+}
+
+.workout-card h3 {
+    color: #333;
+    margin-bottom: 0.5rem;
+    font-size: 1rem; /* Smaller on mobile */
+    word-wrap: break-word;
+}
+
+.workout-card .workout-date {
+    color: #1877f2;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* Upgrade Options in Subscription Card */
+.upgrade-options-container {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+.upgrade-options-container h4 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.upgrade-options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.75rem;
+}
+
+.upgrade-card-small {
+    border: 1px solid #1877f2;
+    background: #ffffff;
+    padding: 0.75rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(24, 119, 242, 0.1);
+}
+
+.upgrade-card-small:hover {
+    border-color: #166fe5;
+    background: #f8f9ff;
+    box-shadow: 0 2px 6px rgba(24, 119, 242, 0.2);
+    transform: translateY(-1px);
+}
+
+.upgrade-label-small {
+    color: #1877f2;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.upgrade-price-small {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #1877f2;
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    position: relative;
+    flex-wrap: wrap;
+}
+
+.card-header-tabs {
+    display: none !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    gap: 0;
+    z-index: 10;
+    border-bottom: 1px solid #dee2e6;
+    background: #f8f9fa;
+    border-radius: 4px 4px 0 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #dee2e6 #f8f9fa;
+    white-space: nowrap;
+}
+
+/* Custom scrollbar for webkit browsers */
+.card-header-tabs::-webkit-scrollbar {
+    height: 4px;
+}
+
+.card-header-tabs::-webkit-scrollbar-track {
+    background: #f8f9fa;
+}
+
+.card-header-tabs::-webkit-scrollbar-thumb {
+    background: #dee2e6;
+    border-radius: 2px;
+}
+
+.card-header-tabs::-webkit-scrollbar-thumb:hover {
+    background: #adb5bd;
+}
+
+.card-tab {
+    background: #f8f9fa;
+    border: none;
+    border-right: 1px solid #dee2e6;
+    padding: 0.5rem 1.25rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #666;
+    transition: all 0.2s;
+    position: relative;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: fit-content;
+}
+
+.card-tab:last-child {
+    border-right: none;
+}
+
+.card-tab:hover {
+    background: #e9ecef;
+    color: #333;
+}
+
+.card-tab.active {
+    background: white;
+    color: #1877f2;
+    font-weight: 600;
+    border-bottom: 2px solid #1877f2;
+    margin-bottom: -1px;
+}
+
+.card-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: white;
+    z-index: 1;
+}
+
+.card-tab.tab-locked {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.card-tab.tab-locked:hover {
+    background: #f8f9fa;
+    color: #666;
+}
+
+.tab-locked-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    font-size: 0.65rem;
+    padding: 0.15rem 0.4rem;
+}
+
+/* Strength Phase Tabs - Smaller tabs for phase filtering (original styling) */
+.strength-phase-tabs {
+    display: none; /* Hidden by default, shown via JavaScript */
+    flex: 1 1 100%;
+    gap: 0.5rem;
+    margin: 0.5rem 0 1rem 0;
+    padding: 0 1rem;
+    border-bottom: 1px solid #dee2e6;
+    justify-content: flex-start; /* Left-justified */
+    width: 100%;
+    order: 1; /* Place before headings */
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #dee2e6 #f8f9fa;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+}
+
+/* Custom scrollbar for phase tabs */
+.strength-phase-tabs::-webkit-scrollbar {
+    height: 4px;
+}
+
+.strength-phase-tabs::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.strength-phase-tabs::-webkit-scrollbar-thumb {
+    background: #dee2e6;
+    border-radius: 2px;
+}
+
+.strength-phase-tabs::-webkit-scrollbar-thumb:hover {
+    background: #adb5bd;
+}
+
+.strength-phase-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #666;
+    transition: all 0.2s;
+    position: relative;
+    font-weight: 500;
+    margin-bottom: -1px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.3;
+    flex-shrink: 0;
+    flex-grow: 0;
+    min-width: fit-content;
+}
+
+.strength-phase-tab:hover {
+    color: #1877f2;
+    background: #f8f9fa;
+}
+
+.strength-phase-tab.active {
+    color: #1877f2;
+    font-weight: 600;
+    border-bottom-color: #1877f2;
+    background: transparent;
+    line-height: 1;
+}
+
+.card-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #333;
+    order: 2; /* Place after phase tabs */
+}
+
+/* Body Composition Tabs - Similar to strength phase tabs */
+.body-composition-tabs {
+    display: flex;
+    flex: 1 1 100%;
+    gap: 0.5rem;
+    margin: 0.5rem 0 1rem 0;
+    padding: 0 1rem;
+    border-bottom: 1px solid #dee2e6;
+    justify-content: flex-start;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #dee2e6 #f8f9fa;
+    white-space: nowrap;
+    flex-wrap: nowrap;
+}
+
+.body-composition-tabs::-webkit-scrollbar {
+    height: 4px;
+}
+
+.body-composition-tabs::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.body-composition-tabs::-webkit-scrollbar-thumb {
+    background: #dee2e6;
+    border-radius: 2px;
+}
+
+.body-composition-tabs::-webkit-scrollbar-thumb:hover {
+    background: #adb5bd;
+}
+
+.body-composition-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #666;
+    transition: all 0.2s;
+    position: relative;
+    font-weight: 500;
+    margin-bottom: -1px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.3;
+    flex-shrink: 0;
+    flex-grow: 0;
+    min-width: fit-content;
+}
+
+.body-composition-tab:hover {
+    color: #1877f2;
+    background: #f8f9fa;
+}
+
+.body-composition-tab.active {
+    color: #1877f2;
+    font-weight: 600;
+    border-bottom-color: #1877f2;
+    background: transparent;
+    line-height: 1;
+}
+
+.body-composition-tab-content {
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Body Comp Log Table Styles */
+.body-comp-log-table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.body-comp-log-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.body-comp-log-table thead {
+    background: #f8f9fa;
+}
+
+.body-comp-log-table th {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 2px solid #dee2e6;
+    font-size: 0.8rem;
+}
+
+.body-comp-log-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+    color: #666;
+    font-size: 0.8rem;
+}
+
+.body-comp-log-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.body-comp-log-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.section-header {
+    background: #e9ecef !important;
+    cursor: pointer;
+    user-select: none;
+}
+
+.section-header:hover {
+    background: #dee2e6 !important;
+}
+
+.section-header td {
+    padding: 0.5rem 0.75rem;
+    color: #333;
+    font-size: 0.85rem;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.section-toggle-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    font-weight: 600;
+    color: #333;
+    font-size: 0.85rem;
+    text-align: left;
+    font-family: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.section-title {
+    flex: 1;
+}
+
+.section-toggle-icon {
+    font-size: 0.75rem;
+    transition: transform 0.2s ease;
+    margin-left: 0.5rem;
+    display: inline-block;
+}
+
+.section-header.expanded .section-toggle-icon {
+    transform: rotate(0deg);
+}
+
+.section-header:not(.expanded) .section-toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.section-row {
+    display: table-row;
+}
+
+.goal-direction-badge {
+    display: inline;
+    font-size: 0.8rem;
+    font-weight: 400;
+    text-transform: capitalize;
+    color: #666;
+}
+
+.trend-indicator {
+    display: inline-block;
+    font-size: 1rem;
+    font-weight: bold;
+    text-align: center;
+    width: 1.2rem;
+    line-height: 1;
+}
+
+.trend-indicator.trend-neutral {
+    color: #999;
+}
+
+.trend-indicator.trend-good {
+    color: #28a745;
+}
+
+.trend-indicator.trend-bad {
+    color: #dc3545;
+}
+
+.delete-measurement-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.delete-measurement-btn:hover {
+    background: #c82333;
+}
+
+.delete-measurement-btn:active {
+    background: #bd2130;
+}
+
+/* Body Composition Form Styles */
+.body-comp-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.body-comp-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.body-comp-form .form-group label {
+    font-weight: 500;
+    color: #333;
+    font-size: 0.85rem;
+}
+
+.body-comp-form .form-group select,
+.body-comp-form .form-group input[type="number"],
+.body-comp-form .form-group input[type="text"] {
+    padding: 0.75rem;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    transition: border-color 0.3s;
+    width: 100%;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.body-comp-form .form-group select:focus,
+.body-comp-form .form-group input[type="number"]:focus {
+    outline: none;
+    border-color: #1877f2;
+}
+
+.body-comp-form .radio-group {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.body-comp-form .radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: 400;
+    color: #333;
+}
+
+.body-comp-form .radio-label input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #1877f2;
+}
+
+.body-comp-form .radio-label span {
+    user-select: none;
+}
+
+.body-comp-form button[type="submit"] {
+    margin-top: 0.5rem;
+    min-width: 150px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    min-height: 36px;
+}
+
+/* Make goal direction buttons match Save Measurement button width */
+.button-choice-group:first-of-type {
+    gap: 0;
+    display: inline-flex;
+    width: 180px;
+}
+
+/* Button Choice Group Styles */
+.button-choice-group {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+/* Goal direction buttons should look like one button split in half */
+.button-choice-group:first-of-type {
+    gap: 0;
+    display: inline-flex;
+    width: fit-content;
+    min-width: 150px;
+}
+
+.button-choice-group:first-of-type .btn-choice {
+    flex: 1;
+    width: 50%;
+    min-width: 0;
+}
+
+.btn-choice-left {
+    border-radius: 8px 0 0 8px !important;
+    border-right-width: 1px;
+}
+
+.btn-choice-right {
+    border-radius: 0 8px 8px 0 !important;
+    border-left: none !important;
+}
+
+/* Make goal direction buttons smaller */
+.button-choice-group:first-of-type .btn-choice {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.85rem !important;
+    min-height: 36px !important;
+}
+
+.btn-choice {
+    background: #ffffff;
+    color: #1877f2;
+    border: 2px solid #1877f2;
+}
+
+.btn-choice:hover {
+    background: #f0f7ff;
+}
+
+.btn-choice.active {
+    background: #1877f2;
+    color: #ffffff;
+    border-color: #1877f2;
+}
+
+.btn-choice.active:hover {
+    background: #166fe5;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(24, 119, 242, 0.4);
+}
+
+/* Good/Bad button specific colors */
+.btn-choice-good {
+    border-color: #28a745;
+    color: #28a745;
+}
+
+.btn-choice-good:hover {
+    background: #f0fdf4;
+}
+
+.btn-choice-good.active {
+    background: #28a745;
+    color: #ffffff;
+    border-color: #28a745;
+}
+
+.btn-choice-good.active:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+}
+
+.btn-choice-bad {
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+.btn-choice-bad:hover {
+    background: #fff5f5;
+}
+
+.btn-choice-bad.active {
+    background: #dc3545;
+    color: #ffffff;
+    border-color: #dc3545;
+}
+
+.btn-choice-bad.active:hover {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
+}
+
+#selectedHeading {
+    text-align: center;
+    width: 100%;
+}
+
+.loading {
+    text-align: center;
+    color: #666;
+    padding: 2rem;
+}
+
+/* Modal - Mobile First */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 1rem; /* Padding on mobile */
+}
+
+.modal-content {
+    background-color: white;
+    margin: 0 auto;
+    padding: 1rem; /* Smaller padding on mobile */
+    border-radius: 12px;
+    width: 100%;
+    max-width: calc(100vw - 2rem); /* Account for modal padding */
+    max-height: calc(100vh - 2rem); /* Account for modal padding */
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    box-sizing: border-box;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.modal-content h2 {
+    font-size: 1.25rem; /* Smaller on mobile */
+    margin-bottom: 1rem;
+}
+
+.workout-content {
+    font-size: 0.9rem; /* Smaller on mobile */
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+#paymentElement {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    min-width: 0;
+}
+
+#payButton {
+    display: block;
+    margin: 1rem auto;
+    width: auto;
+    min-width: 120px;
+}
+
+/* Close button - Mobile friendly */
+.close {
+    color: #aaa;
+    font-size: 32px; /* Larger for touch */
+    font-weight: bold;
+    position: absolute;
+    right: 1rem;
+    top: 0.75rem;
+    cursor: pointer;
+    line-height: 1;
+    min-width: 44px; /* Touch target */
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close:hover,
+.close:focus {
+    color: #000;
+}
+
+.workout-date {
+    color: #1877f2;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    font-size: 1rem; /* Smaller on mobile */
+}
+
+.workout-content {
+    white-space: pre-wrap;
+    line-height: 1.6; /* Tighter on mobile */
+    color: #333;
+    font-size: 0.9rem; /* Smaller on mobile */
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    word-wrap: break-word;
+}
+
+/* Error Messages */
+.error-message {
+    color: #dc3545;
+    padding: 0.75rem;
+    background: #f8d7da;
+    border-radius: 8px;
+    margin-top: 1rem;
+    display: none;
+}
+
+.error-message.show {
+    display: block;
+}
+
+.success-message {
+    color: #155724;
+    padding: 0.75rem;
+    background: #d4edda;
+    border-radius: 8px;
+    margin-top: 1rem;
+    display: none;
+}
+
+.success-message.show {
+    display: block;
+}
+
+/* Loading Overlay */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 3000;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #1877f2;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Modal - Mobile First */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: auto;
+    overflow-x: hidden;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 1rem; /* Padding on mobile */
+    box-sizing: border-box;
+}
+
+.modal-content {
+    background-color: white;
+    margin: 0 auto;
+    padding: 1rem; /* Smaller padding on mobile */
+    border-radius: 12px;
+    width: 100%;
+    max-width: calc(100vw - 2rem); /* Account for modal padding */
+    max-height: calc(100vh - 2rem); /* Account for modal padding */
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    box-sizing: border-box;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.modal-content h2 {
+    font-size: 1.25rem; /* Smaller on mobile */
+    margin-bottom: 1rem;
+}
+
+.workout-content {
+    font-size: 0.9rem; /* Smaller on mobile */
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Close button - Mobile friendly */
+.close {
+    color: #aaa;
+    font-size: 32px; /* Larger for touch */
+    font-weight: bold;
+    position: absolute;
+    right: 1rem;
+    top: 0.75rem;
+    cursor: pointer;
+    line-height: 1;
+    min-width: 44px; /* Touch target */
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close:hover,
+.close:focus {
+    color: #000;
+}
+
+/* Mobile: Smaller text */
+@media (max-width: 480px) {
+    .logout-link {
+        font-size: 0.65rem;
+    }
+    
+    .welcome-message {
+        font-size: 0.7rem;
+    }
+}
+
+@media (min-width: 640px) {
+    .logout-link {
+        font-size: 0.75rem;
+    }
+    
+    .welcome-message {
+        font-size: 0.8rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .logout-link {
+        font-size: 0.8rem;
+    }
+    
+    .welcome-message {
+        font-size: 0.85rem;
+    }
+}
+
+/* Responsive - Tablet and Desktop */
+@media (min-width: 640px) {
+    .container {
+        padding: 0 24px;
+    }
+    
+    .navbar {
+        padding: 0.75rem 0;
+    }
+    
+    .logo {
+        height: 85px; /* Bigger on tablet */
+        max-width: 100%;
+        max-height: 85px;
+    }
+    
+    .logout-link {
+        font-size: 0.65rem;
+    }
+    
+    .welcome-message {
+        font-size: 0.7rem;
+    }
+    
+    .user-details {
+        font-size: 0.875rem;
+        gap: 1rem;
+    }
+    
+    .current-datetime {
+        font-size: 0.75rem;
+    }
+    
+    .dashboard-layout {
+        grid-template-columns: repeat(12, 1fr);
+        grid-template-areas:
+            "dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard"
+            "gym gym gym gym gym gym gym gym gym gym gym gym"
+            "subscription subscription subscription subscription subscription subscription subscription subscription subscription subscription subscription subscription"
+            "today today today today today today today today today today today today";
+        row-gap: 0.25rem;
+        column-gap: 1rem;
+    }
+    
+    .subscription-summary {
+        gap: 0.75rem;
+    }
+    
+    .summary-item {
+        padding: 0.75rem;
+    }
+    
+    .summary-label {
+        font-size: 0.65rem;
+    }
+    
+    .summary-value {
+        font-size: 0.9rem;
+    }
+    
+    .dashboard-summary {
+        gap: 0.75rem;
+    }
+    
+    .dashboard-item {
+        padding: 0.75rem;
+    }
+    
+    .today-workout-details {
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 2rem;
+    }
+    
+    .info-pill {
+        font-size: 0.85rem;
+    }
+    
+    .workout-section-title {
+        font-size: 1rem;
+    }
+    
+    .workout-section-list li {
+        font-size: 0.95rem;
+    }
+    
+    .carousel-card {
+        min-width: 210px;
+    }
+}
+
+/* Mobile-friendly info pills for small screens */
+@media (max-width: 600px) {
+    .today-workout-info {
+        justify-content: center;
+        gap: 0.25rem;
+    }
+    
+    .info-pill {
+        font-size: 0.7rem;
+        padding: 0.1rem 0.45rem;
+    }
+}
+
+@media (min-width: 640px) {
+    .btn-small {
+        min-width: 140px;
+    }
+    
+    .section {
+        padding: 1.5rem 0;
+    }
+    
+    .auth-container {
+        max-width: 400px;
+        padding: 2rem;
+        margin: 2rem auto;
+    }
+    
+    .auth-logo {
+        height: 60px;
+        margin-bottom: 1.5rem;
+    }
+    
+    .auth-container h2 {
+        font-size: 1.75rem;
+    }
+    
+    .subtitle {
+        font-size: 1rem;
+    }
+    
+    .btn {
+        padding: 0.7rem 1.3rem;
+        font-size: 1rem;
+        min-height: 42px;
+    }
+    
+    .card {
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .card h2 {
+        font-size: 1.5rem;
+    }
+    
+    .subscription-info {
+        padding: 1.25rem;
+    }
+    
+    .subscription-info h3 {
+        font-size: 1.25rem;
+    }
+    
+    .tiers {
+        grid-template-columns: repeat(2, minmax(124px, 1fr));
+        gap: 0.75rem;
+        margin-top: 0.75rem;
+    }
+    
+    .tier-card {
+        padding: 1rem;
+        min-width: 124px;
+    }
+    
+    .tier-card h4 {
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .price {
+        font-size: 1.4rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .tier-description {
+        font-size: 0.75rem;
+        margin: 0.75rem 0;
+        line-height: 1.5;
+    }
+    
+    .tier-card .btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.85rem;
+        min-height: 36px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .tiers {
+        grid-template-columns: repeat(4, minmax(124px, 1fr));
+        gap: 1rem;
+        margin-top: 0.75rem;
+    }
+    
+    .tier-card {
+        padding: 1.5rem;
+        min-width: 124px;
+    }
+    
+    .tier-card h4 {
+        font-size: 1.3rem;
+        margin-bottom: 1rem;
+    }
+    
+    .price {
+        font-size: 1.8rem;
+        margin-bottom: 1rem;
+    }
+    
+    .tier-description {
+        font-size: 0.85rem;
+        margin: 1rem 0;
+        line-height: 1.5;
+    }
+    
+    .tier-card .btn {
+        padding: 0.7rem 1.2rem;
+        font-size: 0.95rem;
+        min-height: 40px;
+    }
+    
+    .subscription-summary {
+        gap: 1rem;
+    }
+    
+    .summary-item {
+        padding: 1rem;
+    }
+    
+    .summary-label {
+        font-size: 0.7rem;
+    }
+    
+    .summary-value {
+        font-size: 1rem;
+    }
+    
+    .dashboard-summary {
+        gap: 1rem;
+    }
+    
+    .dashboard-item {
+        padding: 1rem;
+    }
+    
+    .workouts-list {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+    
+    .workout-card {
+        padding: 1.5rem;
+    }
+    
+    .workout-card h3 {
+        font-size: 1.1rem;
+    }
+    
+    .modal-content {
+        max-width: 600px;
+        padding: 2rem;
+    }
+    
+    .modal-content h2 {
+        font-size: 1.5rem;
+    }
+    
+    .workout-content {
+        font-size: 1rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .container {
+        padding: 0 32px;
+    }
+    
+    .navbar {
+        padding: 1rem 0;
+    }
+    
+    .logo {
+        height: 100px; /* Bigger on desktop */
+        max-width: 100%;
+        max-height: 100px;
+    }
+    
+    .logout-link {
+        font-size: 0.7rem;
+    }
+    
+    .welcome-message {
+        font-size: 0.75rem;
+    }
+    
+    .section {
+        padding: 2rem 0;
+    }
+    
+    .card {
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .welcome-message {
+        gap: 0.5rem;
+    }
+    
+    .user-details {
+        font-size: 0.875rem;
+    }
+    
+    .current-datetime {
+        font-size: 0.875rem;
+    }
+    
+    .dashboard-layout {
+        grid-template-columns: repeat(12, 1fr);
+        grid-template-areas:
+            "dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard dashboard"
+            "gym gym gym gym gym gym gym gym gym gym gym gym"
+            "subscription subscription subscription subscription subscription subscription subscription subscription subscription subscription subscription subscription"
+            "today today today today today today today today today today today today";
+        row-gap: 0.25rem;
+        column-gap: 1rem;
+    }
+    
+    .subscription-card {
+        grid-area: subscription;
+    }
+    
+    .gym-membership-card {
+        grid-area: gym;
+    }
+    
+    .today-workout-card {
+        grid-area: today;
+    }
+}
+
+@media (max-width: 480px) {
+    .navbar {
+        padding: 0.6rem 0;
+    }
+
+    .navbar .container {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.4rem;
+    }
+
+    .nav-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .welcome-message {
+        font-size: 0.75rem;
+        justify-content: flex-start;
+    }
+
+    .welcome-label {
+        font-size: 0.75rem;
+    }
+
+    .user-email {
+        font-size: 0.85rem;
+        max-width: 200px;
+    }
+
+}
+
+/* Admin Content Styles */
+.admin-content {
+    padding: 1rem 0;
+}
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.admin-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #333;
+}
+
+.btn-small {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+.users-table-container {
+    overflow-x: auto;
+    max-height: 600px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+}
+
+/* Admin Tabs */
+.admin-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0;
+    padding: 0 1rem;
+    border-bottom: 1px solid #dee2e6;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.admin-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #666;
+    transition: all 0.2s;
+    position: relative;
+    font-weight: 500;
+    margin-bottom: -1px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.admin-tab:hover {
+    color: #1877f2;
+    background: #f8f9fa;
+}
+
+.admin-tab.active {
+    color: #1877f2;
+    font-weight: 600;
+    border-bottom-color: #1877f2;
+    background: transparent;
+}
+
+.admin-tab-content {
+    padding: 0 1rem 1rem 1rem;
+}
+
+.admin-transactions-subtab {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    color: #374151;
+}
+.admin-transactions-subtab:hover {
+    background: #f9fafb;
+}
+.admin-transactions-subtab.active {
+    background: #1877f2;
+    color: #fff;
+    border-color: #1877f2;
+    font-weight: 600;
+}
+
+/* Admin tabs: fit viewport on small devices */
+@media (max-width: 640px) {
+    .admin-tabs {
+        padding: 0 0.5rem;
+        margin: 0.75rem 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap;
+        scrollbar-width: thin;
+    }
+    .admin-tab {
+        padding: 0.4rem 0.5rem;
+        font-size: 0.8125rem;
+    }
+    .admin-tab-content {
+        padding: 0 0.5rem 1rem 0.5rem;
+    }
+}
+
+/* Admin Workout Form */
+.admin-workout-form-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.admin-workout-form .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.admin-workout-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #333;
+    font-size: 0.875rem;
+}
+
+.admin-workout-form input[type="text"],
+.admin-workout-form select,
+.admin-workout-form textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-family: inherit;
+}
+
+.admin-workout-form input[type="text"]:focus,
+.admin-workout-form select:focus,
+.admin-workout-form textarea:focus {
+    outline: none;
+    border-color: #1877f2;
+    box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.1);
+}
+
+.admin-workout-form textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.workout-block {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background: #f8f9fa;
+}
+
+.workout-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #ddd;
+}
+
+.workout-block-header h4 {
+    margin: 0;
+    font-size: 1rem;
+    color: #333;
+}
+
+.workout-block-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.workout-block-fields .form-group {
+    margin-bottom: 1rem;
+}
+
+.workout-exercise-item {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.workout-exercise-item .exercise-name {
+    font-weight: 500;
+    color: #333;
+}
+
+.workout-exercise-item .exercise-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.workout-exercise-item .btn-small {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.workout-exercise-item select[name="exerciseEquipment"] {
+    font-size: 0.875rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+}
+
+.workout-exercise-item select[name="exerciseEquipment"]:focus {
+    outline: none;
+    border-color: #1877f2;
+    box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.1);
+}
+
+.users-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    min-width: 800px; /* Minimum width to prevent cramping */
+}
+
+.users-table thead {
+    background: #f8f9fa;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.users-table th {
+    padding: 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    color: #333;
+    border-bottom: 2px solid #dee2e6;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+}
+
+.users-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #dee2e6;
+    color: #666;
+    vertical-align: middle;
+    position: relative;
+    overflow: visible;
+}
+
+.users-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.users-table tbody {
+    position: relative;
+}
+
+.users-table tbody tr {
+    position: relative;
+}
+
+.users-table th.switch-user-col {
+    text-align: center;
+    width: 2.75rem;
+    vertical-align: middle;
+    color: #555;
+}
+
+.users-table th.switch-user-col svg {
+    display: block;
+    margin: 0 auto;
+}
+
+.users-table td.switch-user-cell {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.switch-user-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    background: #1877f2;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.switch-user-btn:hover {
+    background: #166fe5;
+}
+
+.switch-user-btn:focus-visible {
+    outline: 2px solid #1877f2;
+    outline-offset: 2px;
+}
+
+/* Ensure all editable badges have consistent structure */
+.editable-badge > span {
+    display: inline-block;
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    line-height: 1.2;
+    min-width: 60px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.role-badge.admin {
+    background: #dc3545;
+    color: white;
+}
+
+.role-badge.tester {
+    background: #ffc107;
+    color: #000;
+}
+
+.role-badge.user {
+    background: #6c757d;
+    color: white;
+}
+
+.editable-badge {
+    cursor: pointer;
+    display: inline-block;
+    position: relative;
+    line-height: 1.2;
+    vertical-align: middle;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.editable-badge:hover {
+    opacity: 0.8;
+}
+
+.editable-badge:hover::after {
+    content: ' ✏️';
+    font-size: 0.6rem;
+    margin-left: 0.2rem;
+}
+
+.tier-badge.tier_one,
+.tier-badge.tier_two,
+.tier-badge.tier_three,
+.tier-badge.tier_four,
+.tier-badge.daily,
+.tier-badge.weekly,
+.tier-badge.monthly,
+.tier-badge.none,
+.status-badge.active,
+.status-badge.canceled,
+.status-badge.expired,
+.status-badge.none,
+.expires-badge {
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    display: inline-block;
+    line-height: 1.2;
+    min-width: 70px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.tier-badge.tier_one {
+    background: #6c757d;
+    color: white;
+}
+
+.tier-badge.tier_two {
+    background: #17a2b8;
+    color: white;
+}
+
+.tier-badge.tier_three {
+    background: #28a745;
+    color: white;
+}
+
+.tier-badge.tier_four {
+    background: #007bff;
+    color: white;
+}
+
+/* Legacy tier styles (for backward compatibility during migration) */
+.tier-badge.daily {
+    background: #17a2b8;
+    color: white;
+}
+
+.tier-badge.weekly {
+    background: #28a745;
+    color: white;
+}
+
+.tier-badge.monthly {
+    background: #007bff;
+    color: white;
+}
+
+.tier-badge.none {
+    background: #6c757d;
+    color: white;
+}
+
+.status-badge.active {
+    background: #28a745;
+    color: white;
+}
+
+.status-badge.canceled {
+    background: #ffc107;
+    color: #000;
+}
+
+.status-badge.expired {
+    background: #dc3545;
+    color: white;
+}
+
+.status-badge.none {
+    background: #6c757d;
+    color: white;
+}
+
+.expires-badge {
+    background: #17a2b8;
+    color: white;
+    text-transform: none;
+    min-width: 90px;
+}
+
+.inline-editor {
+    padding: 0.25rem 0.5rem;
+    border: 2px solid #1877f2;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: white;
+    cursor: pointer;
+    min-width: 100px;
+}
+
+.inline-editor:focus {
+    outline: none;
+    border-color: #1877f2;
+    box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.1);
+}
+
+/* Badge options container - extends from badge */
+.badge-options {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: white;
+    border: 2px solid #1877f2;
+    border-radius: 4px;
+    padding: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    position: absolute;
+    z-index: 10000;
+    min-width: 120px;
+    margin-top: 0.25rem;
+    top: 100%;
+    left: 0;
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+.badge-option {
+    padding: 0.6rem 0.8rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #f8f9fa;
+    color: #333;
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;
+    min-height: 44px;
+    min-width: 100%;
+    width: 100%;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    transition: background-color 0.15s ease;
+}
+
+.badge-option:hover {
+    background: #e9ecef;
+}
+
+.badge-option:active,
+.badge-option.touch-active {
+    background: #dee2e6;
+    transform: scale(0.97);
+}
+
+.badge-option.touch-active {
+    background: #d0d5db;
+}
+
+.badge-option.active {
+    background: #1877f2;
+    color: white;
+}
+
+/* Date editor container */
+.badge-date-editor {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: white;
+    border: 2px solid #1877f2;
+    border-radius: 4px;
+    padding: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    position: absolute;
+    z-index: 10000;
+    min-width: 200px;
+    margin-top: 0.25rem;
+    top: 100%;
+    left: 0;
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+.badge-date-input {
+    padding: 0.6rem 0.8rem;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    width: 100%;
+    min-height: 44px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+}
+
+.badge-date-input:focus {
+    outline: none;
+    border-color: #1877f2;
+    box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.1);
+}
+
+/* Created date cell with delete button */
+.created-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.created-date {
+    font-size: 0.7rem;
+    color: #666;
+}
+
+.delete-user-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0.2rem 0.3rem;
+    border-radius: 3px;
+    transition: all 0.2s;
+    opacity: 0.6;
+    line-height: 1;
+}
+
+.delete-user-btn:hover {
+    opacity: 1;
+    background: #fee;
+    transform: scale(1.1);
+}
+
+@media (max-width: 1024px) {
+    .users-table {
+        font-size: 0.8rem;
+        min-width: 700px;
+    }
+    
+    .users-table th,
+    .users-table td {
+        padding: 0.6rem 0.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .users-table {
+        font-size: 0.75rem;
+        min-width: 600px;
+    }
+    
+    .users-table th,
+    .users-table td {
+        padding: 0.5rem 0.4rem;
+    }
+    
+    .editable-badge {
+        font-size: 0.7rem;
+    }
+    
+    .role-badge,
+    .tier-badge,
+    .status-badge,
+    .expires-badge {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.7rem;
+        min-width: 60px;
+        text-align: center;
+    }
+    
+    .expires-badge {
+        min-width: 80px;
+    }
+    
+    .card-header-tabs {
+        position: static;
+        margin-bottom: 0.5rem;
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        overflow-x: visible;
+        overflow-y: visible;
+        white-space: normal;
+        border-radius: 4px;
+    }
+    
+    .card-tab {
+        flex: 1 1 auto;
+        text-align: center;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+        min-width: 120px;
+        max-width: 100%;
+        white-space: normal;
+    }
+    
+    .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 480px) {
+    .users-table {
+        font-size: 0.7rem;
+        min-width: 550px;
+    }
+    
+    .users-table th,
+    .users-table td {
+        padding: 0.4rem 0.3rem;
+    }
+    
+    .editable-badge {
+        font-size: 0.65rem;
+    }
+    
+    .role-badge,
+    .tier-badge,
+    .status-badge,
+    .expires-badge {
+        padding: 0.15rem 0.3rem;
+        font-size: 0.65rem;
+        min-width: 55px;
+        text-align: center;
+    }
+    
+    .expires-badge {
+        min-width: 75px;
+    }
+    
+    .inline-editor {
+        font-size: 0.65rem;
+        padding: 0.2rem 0.4rem;
+        min-width: 80px;
+    }
+    
+    .card-header-tabs {
+        flex-wrap: wrap;
+        overflow-x: visible;
+        overflow-y: visible;
+        white-space: normal;
+        border-radius: 4px;
+    }
+    
+    .card-tab {
+        flex: 1 1 auto;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.7rem;
+        min-width: 100px;
+        max-width: 100%;
+        white-space: normal;
+    }
+    
+}
+
+/* Macro Calculator Styles */
+.macro-content {
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.macro-calculator-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.macro-title-section {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.macro-title-section h2 {
+    color: #1877f2;
+    margin-bottom: 1rem;
+}
+
+.macro-title-section p {
+    color: #666;
+    line-height: 1.6;
+}
+
+.macro-calc-form {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.macro-form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.macro-form-row h3 {
+    width: 100%;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.macro-form-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+.macro-form-group-full {
+    width: 100%;
+}
+
+.macro-form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #333;
+    font-weight: 500;
+}
+
+.macro-form-group input,
+.macro-form-group select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+}
+
+.macro-input-with-percent {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.macro-input-with-percent input {
+    padding-right: 1.5rem;
+}
+
+.macro-percent-suffix {
+    position: absolute;
+    right: 0.75rem;
+    color: #666;
+    font-size: 0.9rem;
+    pointer-events: none;
+    user-select: none;
+}
+
+.macro-input-with-button {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+}
+
+.macro-input-with-button input {
+    flex: 1;
+}
+
+/* Info Button Styles */
+.macro-info-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    margin-left: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    transition: all 0.2s;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+}
+
+.macro-info-btn:hover {
+    background: transparent;
+    transform: scale(1.1);
+}
+
+.macro-info-btn:active {
+    transform: scale(0.95);
+}
+
+.macro-info-icon {
+    width: 16px;
+    height: 16px;
+    display: block;
+    transition: all 0.2s;
+}
+
+.macro-info-btn:hover .macro-info-icon {
+    transform: scale(1.1);
+}
+
+.macro-info-btn:hover .macro-info-icon circle:first-child {
+    fill: #1565c0;
+}
+
+.macro-label-with-info {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.macro-heading-with-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+/* Legacy button style for backwards compatibility */
+.btn-help {
+    background-color: #ffc107;
+    color: #000;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-help:hover {
+    background-color: #ffb300;
+}
+
+.macro-help-text {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #e7f3ff;
+    border-radius: 6px;
+    border: 2px solid #1877f2;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.macro-help-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+}
+
+.macro-help-table th,
+.macro-help-table td {
+    border: 1px solid #ddd;
+    padding: 0.5rem;
+    text-align: left;
+}
+
+.macro-help-table th {
+    background-color: #4CAF50;
+    color: white;
+    text-align: center;
+}
+
+.macro-disclaimer {
+    font-size: 0.85rem;
+    color: #666;
+    line-height: 1.6;
+    margin-top: 1rem;
+}
+
+.macro-error-message {
+    color: red;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+.macro-results-section {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.macro-results-section h2 {
+    color: #333;
+    margin-bottom: 0.5rem;
+}
+
+.macro-result-calories {
+    color: #4CAF50;
+    font-size: 3rem;
+    font-weight: bold;
+    margin: 1rem 0;
+}
+
+.macro-results-table-container {
+    width: 100%;
+    margin: 2rem auto;
+    display: block;
+    overflow-x: auto;
+    text-align: center;
+}
+
+.macro-results-table {
+    width: fit-content;
+    max-width: 800px;
+    min-width: 400px;
+    border-collapse: collapse;
+    margin: 0 auto;
+    table-layout: auto;
+}
+
+.macro-results-inputs-display {
+    flex: 1;
+}
+
+.macro-results-inputs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.macro-results-inputs-grid div {
+    color: #333;
+}
+
+.macro-results-table th {
+    background-color: #4CAF50;
+    color: white;
+    padding: 0.75rem;
+    text-align: center;
+}
+
+.macro-results-table td {
+    border: 1px solid #ddd;
+    padding: 0.75rem;
+    text-align: center;
+}
+
+.macro-results-total-row {
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+.macro-results-total-row td {
+    border-top: 2px solid #4CAF50;
+    padding: 0.75rem;
+}
+
+.macro-button-group {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 1.5rem;
+}
+
+.macro-button-group button {
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.macro-button-group .btn-primary {
+    background-color: #1877f2;
+    color: white;
+}
+
+.macro-button-group .btn-primary:hover {
+    background-color: #1565c0;
+}
+
+.macro-button-group .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.macro-button-group .btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+.macro-meal-plan-section {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.macro-meal-plan-display {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.macro-meal-plan-display h3 {
+    color: #333;
+    margin-bottom: 0.5rem;
+}
+
+.macro-meals-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+}
+
+.macro-meals-table th {
+    background-color: #4CAF50;
+    color: white;
+    padding: 0.75rem;
+    text-align: center;
+}
+
+.macro-meals-table td {
+    border: 1px solid #ddd;
+    padding: 0.75rem;
+    text-align: center;
+}
+
+.macro-meal-name-input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.macro-meal-input {
+    width: 60px;
+    padding: 0.25rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    text-align: center;
+    margin-right: 0.25rem;
+}
+
+.macro-meal-percent {
+    color: #333;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+}
+
+.macro-meal-grams {
+    color: #666;
+    font-size: 0.85rem;
+}
+
+.macro-meal-plan-instructions {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid #1877f2;
+}
+
+.macro-meal-plan-instructions p {
+    margin: 0;
+    color: #333;
+    line-height: 1.6;
+    font-size: 0.9rem;
+}
+
+.macro-finished-message {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+    color: #666;
+    line-height: 1.6;
+}
+
+.macro-saved-success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.macro-saved-success h3 {
+    color: #155724;
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.macro-saved-success p {
+    color: #155724;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.macro-plan-display-text {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.8;
+    color: #333;
+}
+
+.macro-plan-summary {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.macro-plan-summary h4 {
+    color: #1877f2;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.macro-plan-summary p {
+    margin: 0.5rem 0;
+    font-size: 0.95rem;
+}
+
+.macro-meals-text h4 {
+    color: #1877f2;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.macro-meal-text-item {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+    border-left: 4px solid #1877f2;
+}
+
+.macro-meal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.macro-meal-text-item h5 {
+    color: #333;
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.macro-copy-btn {
+    background: #1877f2;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.macro-copy-btn:hover {
+    background: #1565c0;
+}
+
+.macro-copy-btn:active {
+    transform: scale(0.95);
+}
+
+.macro-meal-text-content {
+    color: #555;
+    font-size: 0.9rem;
+    line-height: 1.8;
+    user-select: all;
+    cursor: text;
+    padding: 0.75rem;
+    background: white;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+    transition: background-color 0.2s;
+}
+
+.macro-meal-text-content:hover {
+    background: #f8f9fa;
+}
+
+.macro-meal-text-content:active {
+    background: #e9ecef;
+}
+
+.macro-chatgpt-tip {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-top: 1.5rem;
+}
+
+.macro-chatgpt-tip h4 {
+    color: #856404;
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+}
+
+.macro-chatgpt-tip p {
+    color: #856404;
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.macro-chatgpt-tip-collapsible {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    margin-top: 1.5rem;
+    overflow: hidden;
+}
+
+.macro-chatgpt-tip-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.macro-chatgpt-tip-header:hover {
+    background: rgba(255, 193, 7, 0.1);
+}
+
+.macro-chatgpt-tip-header h4 {
+    color: #856404;
+    margin: 0;
+    font-size: 1rem;
+}
+
+.macro-expand-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #856404;
+    transition: transform 0.3s ease;
+}
+
+.macro-expand-btn.expanded {
+    transform: rotate(180deg);
+}
+
+.macro-expand-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.macro-chatgpt-tip-content {
+    padding: 0 1rem 1rem 1rem;
+    animation: slideDown 0.3s ease-out;
+}
+
+.macro-chatgpt-tip-content p {
+    color: #856404;
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.macro-activity-info-collapsible {
+    position: relative;
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+.macro-activity-info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    gap: 0.75rem;
+}
+
+.macro-activity-info-header:hover {
+    background: rgba(24, 119, 242, 0.05);
+}
+
+.macro-activity-info-header p {
+    margin: 0;
+    color: #333;
+    line-height: 1.6;
+    font-size: 0.9rem;
+    flex: 1;
+}
+
+.macro-activity-info-header .macro-expand-btn {
+    flex-shrink: 0;
+    color: #1877f2;
+    margin-top: 0.125rem;
+}
+
+.macro-activity-info-content {
+    padding: 0 1rem 1rem 1rem;
+    animation: slideDown 0.3s ease-out;
+}
+
+.macro-activity-info-content p {
+    margin: 0 0 0.75rem 0;
+    color: #333;
+    line-height: 1.6;
+    font-size: 0.9rem;
+}
+
+.macro-activity-info-content p:last-child {
+    margin-bottom: 0;
+}
+
+.macro-results-info-collapsible,
+.macro-body-fat-info-collapsible,
+.macro-macros-info-collapsible,
+.macro-meal-plan-info-collapsible,
+.macro-meal-plan-display-info-collapsible {
+    position: relative;
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+.macro-results-info-header,
+.macro-body-fat-info-header,
+.macro-macros-info-header,
+.macro-meal-plan-info-header,
+.macro-meal-plan-display-info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    gap: 0.75rem;
+}
+
+.macro-results-info-header:hover,
+.macro-body-fat-info-header:hover,
+.macro-macros-info-header:hover,
+.macro-meal-plan-info-header:hover,
+.macro-meal-plan-display-info-header:hover {
+    background: rgba(24, 119, 242, 0.05);
+}
+
+.macro-results-info-header p,
+.macro-body-fat-info-header p,
+.macro-macros-info-header p,
+.macro-meal-plan-info-header p,
+.macro-meal-plan-display-info-header p {
+    margin: 0;
+    color: #333;
+    line-height: 1.6;
+    font-size: 0.9rem;
+    flex: 1;
+}
+
+.macro-results-info-header {
+    align-items: flex-start;
+}
+
+.macro-results-info-header .macro-expand-btn,
+.macro-body-fat-info-header .macro-expand-btn,
+.macro-macros-info-header .macro-expand-btn,
+.macro-meal-plan-info-header .macro-expand-btn,
+.macro-meal-plan-display-info-header .macro-expand-btn {
+    flex-shrink: 0;
+    color: #1877f2;
+    margin-top: 0.125rem;
+}
+
+.macro-results-info-content,
+.macro-body-fat-info-content,
+.macro-macros-info-content,
+.macro-meal-plan-info-content,
+.macro-meal-plan-display-info-content {
+    padding: 0 1rem 1rem 1rem;
+    animation: slideDown 0.3s ease-out;
+}
+
+.macro-results-info-content p,
+.macro-body-fat-info-content p,
+.macro-macros-info-content p,
+.macro-meal-plan-info-content p,
+.macro-meal-plan-display-info-content p {
+    margin: 0 0 0.75rem 0;
+    color: #333;
+    line-height: 1.6;
+    font-size: 0.9rem;
+}
+
+.macro-results-info-content p:last-child,
+.macro-body-fat-info-content p:last-child,
+.macro-macros-info-content p:last-child,
+.macro-meal-plan-info-content p:last-child,
+.macro-meal-plan-display-info-content p:last-child {
+    margin-bottom: 0;
+}
+
+/* Mobile Optimizations for Macro Calculator */
+@media (max-width: 768px) {
+    /* Macro Content Container */
+    .macro-content {
+        padding: 1rem;
+    }
+    
+    .macro-calculator-container {
+        padding: 0.5rem;
+    }
+    
+    /* Title Section */
+    .macro-title-section {
+        margin-bottom: 1.5rem;
+    }
+    
+    .macro-title-section h2 {
+        font-size: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .macro-title-section p {
+        font-size: 0.9rem;
+        line-height: 1.6;
+        padding: 0 0.5rem;
+    }
+    
+    /* Form Styles */
+    .macro-calc-form {
+        padding: 1rem;
+    }
+    
+    .macro-form-row {
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    
+    .macro-form-group {
+        width: 100%;
+        min-width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    .macro-form-group label {
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .macro-form-group input,
+    .macro-form-group select {
+        width: 100%;
+        padding: 0.75rem;
+        font-size: 1rem; /* Prevents zoom on iOS */
+        border-radius: 6px;
+        min-height: 44px; /* Touch target size */
+    }
+    
+    .macro-input-with-percent input {
+        padding-right: 1.75rem;
+    }
+    
+    .macro-percent-suffix {
+        right: 0.875rem;
+        font-size: 1rem;
+    }
+    
+    .macro-input-with-button {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    
+    .macro-input-with-button input {
+        width: 100%;
+    }
+    
+    .macro-info-btn {
+        width: 28px;
+        height: 28px;
+        min-width: 28px;
+        min-height: 28px;
+        padding: 0;
+        margin-left: 0.25rem;
+    }
+    
+    .macro-info-icon {
+        width: 18px;
+        height: 18px;
+    }
+    
+    .macro-heading-with-info {
+        flex-wrap: wrap;
+    }
+    
+    .macro-heading-with-info .macro-info-btn {
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
+        min-height: 24px;
+        margin-left: 0;
+    }
+    
+    .macro-heading-with-info .macro-info-icon {
+        width: 16px;
+        height: 16px;
+    }
+    
+    .macro-label-with-info,
+    .macro-heading-with-info {
+        flex-wrap: wrap;
+    }
+    
+    /* Legacy button style for backwards compatibility */
+    .btn-help {
+        width: 100%;
+        padding: 0.75rem;
+        font-size: 1rem;
+        min-height: 44px;
+    }
+    
+    /* Help Text */
+    .macro-help-text {
+        padding: 0.75rem;
+        font-size: 0.85rem;
+    }
+    
+    .macro-help-table {
+        font-size: 0.8rem;
+        display: block;
+        overflow-x: auto;
+    }
+    
+    .macro-help-table th,
+    .macro-help-table td {
+        padding: 0.4rem 0.3rem;
+    }
+    
+    /* Results Section */
+    .macro-results-section {
+        padding: 1rem;
+    }
+    
+    .macro-results-section h2 {
+        font-size: 1.3rem;
+    }
+    
+    .macro-result-calories {
+        font-size: 2.5rem;
+        margin: 0.75rem 0;
+    }
+    
+    .macro-results-table {
+        font-size: 0.85rem;
+        margin: 1rem 0;
+        display: block;
+        overflow-x: auto;
+    }
+    
+    .macro-results-table th,
+    .macro-results-table td {
+        padding: 0.5rem 0.4rem;
+    }
+    
+    /* Buttons */
+    .macro-button-group {
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-top: 1rem;
+    }
+    
+    .macro-button-group button {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1rem;
+        min-height: 44px; /* Touch target size */
+    }
+    
+    /* Meal Plan Section */
+    .macro-meal-plan-section,
+    .macro-meal-plan-display {
+        padding: 1rem;
+    }
+    
+    .macro-meal-plan-display h3 {
+        font-size: 1.2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .macro-meal-plan-instructions {
+        padding: 0.75rem;
+        font-size: 0.85rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* Meal Plan Table - Make scrollable on mobile */
+    .macro-meals-table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 1rem 0;
+        font-size: 0.85rem;
+        width: 100%;
+    }
+    
+    .macro-meals-table thead,
+    .macro-meals-table tbody,
+    .macro-meals-table tr {
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+    }
+    
+    .macro-meals-table th,
+    .macro-meals-table td {
+        padding: 0.6rem 0.4rem;
+        word-wrap: break-word;
+    }
+    
+    .macro-meal-input {
+        width: 100%;
+        max-width: 80px;
+        padding: 0.5rem;
+        font-size: 1rem; /* Prevents zoom on iOS */
+        margin-right: 0.5rem;
+        min-height: 44px;
+    }
+    
+    .macro-meal-percent {
+        font-size: 0.85rem;
+        margin-right: 0.25rem;
+    }
+    
+    .macro-meal-grams {
+        font-size: 0.8rem;
+        display: block;
+        margin-top: 0.25rem;
+    }
+    
+    /* Finished Section */
+    .macro-finished-message {
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .macro-saved-success {
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    
+    .macro-saved-success h3 {
+        font-size: 1rem;
+    }
+    
+    .macro-saved-success p {
+        font-size: 0.85rem;
+        line-height: 1.5;
+    }
+    
+    .macro-plan-display-text {
+        padding: 1rem;
+        font-size: 0.85rem;
+        line-height: 1.6;
+        overflow-x: auto;
+    }
+    
+    .macro-plan-summary {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+    }
+    
+    .macro-plan-summary h4,
+    .macro-meals-text h4 {
+        font-size: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .macro-plan-summary p {
+        font-size: 0.85rem;
+        margin: 0.4rem 0;
+    }
+    
+    .macro-meal-text-item {
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    
+    .macro-meal-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .macro-meal-text-item h5 {
+        font-size: 0.95rem;
+    }
+    
+    .macro-copy-btn {
+        width: 100%;
+        padding: 0.6rem;
+        font-size: 0.9rem;
+        min-height: 44px;
+    }
+    
+    .macro-meal-text-content {
+        padding: 0.6rem;
+        font-size: 0.85rem;
+        line-height: 1.6;
+    }
+    
+    .macro-chatgpt-tip,
+    .macro-chatgpt-tip-collapsible {
+        padding: 0;
+        margin-top: 1rem;
+    }
+    
+    .macro-chatgpt-tip-header {
+        padding: 0.6rem 0.75rem;
+    }
+    
+    .macro-chatgpt-tip-header h4 {
+        font-size: 0.95rem;
+        margin: 0;
+    }
+    
+    .macro-chatgpt-tip-content {
+        padding: 0 0.75rem 0.75rem 0.75rem;
+    }
+    
+    .macro-chatgpt-tip-content p {
+        font-size: 0.85rem;
+        line-height: 1.5;
+    }
+    
+    .macro-expand-btn {
+        padding: 0.2rem;
+    }
+    
+    .macro-expand-btn svg {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+/* Extra Small Mobile Devices */
+@media (max-width: 480px) {
+    .macro-content {
+        padding: 0.75rem;
+    }
+    
+    .macro-calculator-container {
+        padding: 0.25rem;
+    }
+    
+    .macro-title-section h2 {
+        font-size: 1.3rem;
+    }
+    
+    .macro-title-section p {
+        font-size: 0.85rem;
+    }
+    
+    .macro-calc-form {
+        padding: 0.75rem;
+    }
+    
+    .macro-result-calories {
+        font-size: 2rem;
+    }
+    
+    .macro-results-table {
+        font-size: 0.75rem;
+    }
+    
+    .macro-results-table th,
+    .macro-results-table td {
+        padding: 0.4rem 0.3rem;
+    }
+    
+    .macro-meals-table {
+        font-size: 0.75rem;
+    }
+    
+    .macro-meal-input {
+        max-width: 70px;
+        padding: 0.4rem;
+        font-size: 0.9rem;
+    }
+    
+    .macro-plan-display-text {
+        padding: 0.75rem;
+        font-size: 0.8rem;
+    }
+    
+    .macro-meal-text-content {
+        font-size: 0.8rem;
+        padding: 0.5rem;
+    }
+    
+    .macro-button-group button {
+        padding: 0.875rem;
+        font-size: 0.95rem;
+    }
+}
+
+/* PR Calculator Styles */
+.pr-calculator-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.pr-calculator-form {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.pr-form-group {
+    margin-bottom: 1.5rem;
+}
+
+.pr-form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.pr-form-group input,
+.pr-form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+
+.pr-form-group input:focus,
+.pr-form-group select:focus {
+    outline: none;
+    border-color: #1877f2;
+    box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.1);
+}
+
+/* Personal Trainer View Styles */
+.personal-trainer-content {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.personal-trainer-header {
+    margin-bottom: 1.5rem;
+}
+
+/* Personal Trainer tabs - original styling restored */
+.personal-trainer-tabs {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 1px solid #dee2e6;
+    margin: 0.5rem 0 1rem 0;
+    padding: 0 1rem;
+    justify-content: flex-start;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #dee2e6 #f8f9fa;
+    white-space: nowrap;
+}
+
+.personal-trainer-tabs::-webkit-scrollbar {
+    height: 4px;
+}
+
+.personal-trainer-tabs::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.personal-trainer-tabs::-webkit-scrollbar-thumb {
+    background: #dee2e6;
+    border-radius: 2px;
+}
+
+.personal-trainer-tabs::-webkit-scrollbar-thumb:hover {
+    background: #adb5bd;
+}
+
+.personal-trainer-tab {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #666;
+    transition: all 0.2s;
+    position: relative;
+    font-weight: 500;
+    margin-bottom: -1px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.3;
+    flex-shrink: 0;
+    flex-grow: 0;
+    min-width: fit-content;
+}
+
+.personal-trainer-tab:hover {
+    color: #1877f2;
+    background: #f8f9fa;
+}
+
+.personal-trainer-tab.active {
+    color: #1877f2;
+    font-weight: 600;
+    border-bottom-color: #1877f2;
+    background: transparent;
+    line-height: 1;
+}
+
+.pt-tab-content {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Make macro calculator content smaller in personal trainer view */
+.personal-trainer-content .macro-calculator-container {
+    max-width: 100%;
+    padding: 1rem;
+}
+
+.personal-trainer-content .pr-calculator-container {
+    max-width: 100%;
+    padding: 1rem;
+}
+
+/* Responsive styles for personal trainer tabs to match original behavior */
+@media (max-width: 768px) {
+    .personal-trainer-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .personal-trainer-tab {
+        flex: 0 0 auto;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+        min-width: fit-content;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.3;
+    }
+}
+
+@media (max-width: 480px) {
+    .personal-trainer-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .personal-trainer-tab {
+        flex: 0 0 auto;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.7rem;
+        min-width: fit-content;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.3;
+    }
+}
+
+.pr-results {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+}
+
+.pr-results h3 {
+    margin-top: 0;
+    color: #1877f2;
+    font-size: 1.25rem;
+}
+
+.pr-range,
+.pr-confidence {
+    margin: 1rem 0;
+}
+
+.pr-range > div:first-child,
+.pr-confidence > div:first-child {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .pr-calculator-container {
+        padding: 1rem;
+    }
+    
+    .pr-calculator-form {
+        padding: 1rem;
+    }
+    
+    .pr-form-group {
+        margin-bottom: 1rem;
+    }
+    
+    .pr-form-group input,
+    .pr-form-group select {
+        padding: 0.6rem;
+        font-size: 0.9rem;
+    }
+}
+
+/* Gym Membership Invoice Styles */
+.gym-membership-details {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 1.5rem;
+    margin-top: 1.5rem;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+/* Gym Membership Tabs - Override default hidden state */
+.gym-membership-tabs-container {
+    margin-top: -1.5rem;
+    margin-left: -0.75rem;
+    margin-right: -0.75rem;
+    padding: 0 0.75rem;
+}
+
+.gym-membership-tabs-container .card-header-tabs {
+    display: flex !important;
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    margin-bottom: 1.5rem;
+    margin-top: 0;
+    border: 1px solid rgba(212, 175, 55, 0.28);
+    background: #0b1220;
+    border-radius: 10px;
+    width: 100%;
+    padding: 0.3rem;
+    gap: 0.35rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(212, 175, 55, 0.4) rgba(15, 23, 42, 0.6);
+    justify-content: flex-start;
+}
+
+.gym-membership-tabs-container .gym-tabs-scroll-wrap {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 1.5rem;
+}
+
+.gym-membership-tabs-container .gym-tabs-scroll-wrap .card-header-tabs {
+    margin-bottom: 0;
+}
+
+.gym-membership-tabs-container .gym-tabs-scroll-btn {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 999px;
+    border: 1px solid rgba(212, 175, 55, 0.38);
+    background: rgba(11, 18, 32, 0.92);
+    color: rgba(252, 211, 77, 0.92);
+    font-size: 0.72rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.gym-membership-tabs-container .gym-tabs-scroll-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.gym-membership-tabs-container .card-header-tabs::-webkit-scrollbar {
+    height: 4px;
+}
+
+.gym-membership-tabs-container .card-header-tabs::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 3px;
+}
+
+.gym-membership-tabs-container .card-header-tabs::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.4);
+    border-radius: 3px;
+}
+
+.gym-membership-tabs-container .card-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+    .gym-membership-tabs-container .gym-tabs-scroll-wrap {
+        gap: 0.25rem;
+        margin-bottom: 1rem;
+    }
+
+    .gym-membership-tabs-container .gym-tabs-scroll-btn {
+        width: 1.15rem;
+        height: 1.15rem;
+        font-size: 0.62rem;
+    }
+
+    .gym-membership-tabs-container .card-header-tabs {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        white-space: nowrap !important;
+        justify-content: flex-start !important;
+    }
+
+    .gym-membership-tabs-container .card-tab {
+        flex: 0 0 auto !important;
+        min-width: unset !important;
+        max-width: none !important;
+        padding: 0.4rem 0.55rem !important;
+        font-size: 0.74rem !important;
+        white-space: nowrap !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .gym-membership-tabs-container .gym-tabs-scroll-wrap {
+        gap: 0.2rem;
+    }
+
+    .gym-membership-tabs-container .gym-tabs-scroll-btn {
+        width: 1rem;
+        height: 1rem;
+        font-size: 0.56rem;
+    }
+
+    .gym-membership-tabs-container .card-header-tabs {
+        padding: 0.22rem !important;
+        gap: 0.28rem !important;
+    }
+
+    .gym-membership-tabs-container .card-tab {
+        padding: 0.32rem 0.42rem !important;
+        font-size: 0.68rem !important;
+    }
+}
+
+.gym-tab-content {
+    display: none;
+}
+
+.gym-tab-content.active {
+    display: block;
+}
+
+/* Gym Hours Schedule - Card layout with day hierarchy */
+.gym-schedule {
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+.gym-schedule-header {
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.gym-schedule-title {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.gym-schedule-address {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: #6b7280;
+}
+
+.gym-schedule-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-bottom: 1.25rem;
+    padding: 0.75rem;
+    background: #f8fafc;
+    border-radius: 8px;
+}
+
+.gym-schedule-legend-item {
+    display: inline-flex;
+    align-items: center;
+}
+
+.gym-schedule-days {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.gym-schedule-day-card {
+    display: flex;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.gym-schedule-day-card.gym-schedule-day-weekend {
+    background: #fff;
+}
+
+.gym-schedule-day-card.gym-schedule-day-weekend .gym-schedule-day-col {
+    background: #f3f4f6;
+}
+
+.gym-schedule-day-card.gym-schedule-day-sunday {
+    background: #fff;
+}
+
+.gym-schedule-day-card.gym-schedule-day-sunday .gym-schedule-day-col {
+    background: #fce7f3;
+}
+
+/* Gray left column for day names - increased contrast and spacing */
+.gym-schedule-day-col {
+    min-width: 100px;
+    padding: 1rem 1.25rem;
+    background: #f3f4f6;
+    display: flex;
+    align-items: flex-start;
+}
+
+.gym-schedule-day-name {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #374151;
+    line-height: 1.4;
+}
+
+.gym-schedule-slots-col {
+    flex: 1;
+    padding: 0.75rem 1.25rem;
+}
+
+.gym-schedule-slots {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.gym-schedule-slot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid #f9fafb;
+}
+
+.gym-schedule-slot:last-child {
+    border-bottom: none;
+}
+
+.gym-schedule-slot-evening {
+    background: #fefce8;
+    border: 1px solid #fde047;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin: 0.25rem 0;
+}
+
+.gym-schedule-slot-evening::after {
+    content: 'Evening';
+    display: inline-block;
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #a16207;
+    margin-left: 0.5rem;
+}
+
+/* Tabular figures for time alignment */
+.gym-schedule-time {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #374151;
+    min-width: 3.5ch;
+    font-variant-numeric: tabular-nums;
+}
+
+.gym-schedule-empty {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: #9ca3af;
+}
+
+.gym-schedule-day-card.gym-schedule-day-sunday .gym-schedule-empty {
+    font-style: italic;
+    color: #6b7280;
+}
+
+.gym-schedule-class-pill {
+    display: inline-block;
+    padding: 0.35rem 0.65rem;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+}
+
+.gym-schedule-class-pill-functional {
+    background: #2563eb;
+}
+
+.gym-schedule-class-pill-yoga {
+    background: #0d9488;
+}
+
+.gym-schedule-class-pill-highfit {
+    background: #ea580c;
+}
+
+.gym-schedule-class-pill-opengym {
+    background: #475569;
+    font-size: 0.75rem;
+}
+
+/* Yellow callout with left accent border */
+.gym-schedule-footer {
+    margin-top: 1.25rem;
+    padding: 1rem 1.25rem;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-left: 4px solid #f59e0b;
+    border-radius: 8px;
+    font-size: 0.9375rem;
+    color: #92400e;
+    line-height: 1.6;
+}
+
+@media (min-width: 640px) {
+    .gym-schedule-days {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+}
+
+@media (min-width: 900px) {
+    .gym-schedule-days {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.membership-invoice {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem 0.75rem;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+/* Join options (dashboard) mirrors home page aesthetic */
+.gym-join-options {
+    padding: 1rem 0.25rem 0.5rem;
+    background: #0f172a;
+    border-radius: 10px;
+    border: 1px solid rgba(212, 175, 55, 0.22);
+}
+.gym-join-options-inner {
+    max-width: 980px;
+    margin: 0 auto;
+}
+.gym-join-options h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    color: #ffffff;
+    letter-spacing: 0.04em;
+    font-size: clamp(1.8rem, 5vw, 2.6rem);
+    margin: 0 0 0.25rem 0;
+    text-align: center;
+}
+.gym-join-options-subtitle {
+    margin: 0 0 1.25rem 0;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.9rem;
+}
+.gym-join-options-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+}
+.gym-join-option-card {
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+.gym-join-option-card h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #ffffff;
+}
+.gym-join-option-price {
+    color: #d4af37;
+    font-weight: 700;
+    font-size: 0.98rem;
+}
+.gym-join-option-copy {
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.86rem;
+    line-height: 1.45;
+    min-height: 2.4em;
+}
+.gym-join-option-btn {
+    margin-top: auto;
+    align-self: flex-start;
+    min-height: 42px;
+    min-width: 170px;
+    border: none;
+    border-radius: 8px;
+    background: #d4af37;
+    color: #000000;
+    padding: 0 1rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.gym-join-option-btn:hover {
+    box-shadow: 0 4px 18px rgba(212, 175, 55, 0.35);
+}
+.gym-join-option-btn:active {
+    transform: scale(0.98);
+}
+@media (min-width: 640px) {
+    .gym-join-options-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.invoice-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #f3f4f6;
+}
+
+.invoice-brand h2 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.invoice-subtitle {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.invoice-date {
+    text-align: right;
+}
+
+.invoice-date p {
+    margin: 0.25rem 0;
+    font-size: 0.875rem;
+    color: #374151;
+}
+
+.invoice-status {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.invoice-status.active {
+    background-color: #047857;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 1px 2px rgba(4, 120, 87, 0.35);
+}
+
+.invoice-billing-info {
+    margin-bottom: 1.5rem;
+}
+
+.billing-section h3 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.billing-section p {
+    margin: 0.25rem 0;
+    font-size: 0.9375rem;
+    color: #111827;
+}
+
+.primary-label {
+    display: inline-block;
+    margin-top: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    background: #eff6ff;
+    color: #1e40af;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.invoice-items {
+    margin-bottom: 1.5rem;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+}
+
+.invoice-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    table-layout: auto;
+    min-width: 500px; /* Minimum width to prevent header overlap */
+    font-size: 0.8125rem;
+}
+
+.invoice-group-table {
+    min-width: 400px; /* Smaller minimum width for simpler group table */
+}
+
+.invoice-group-table .col-member-name {
+    min-width: 150px;
+}
+
+.invoice-group-table .col-member-email {
+    min-width: 200px;
+}
+
+.invoice-group-table .col-payment-status {
+    min-width: 120px;
+    text-align: center;
+}
+
+.invoice-table thead {
+    background-color: #f9fafb;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.invoice-table th {
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    min-width: fit-content;
+}
+
+.invoice-table .col-primary {
+    width: 50px;
+    min-width: 50px;
+    text-align: center;
+}
+
+.invoice-table .col-member {
+    min-width: 100px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.invoice-table .col-type {
+    min-width: 120px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.invoice-table .col-price {
+    min-width: 80px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.invoice-table .col-subscription {
+    min-width: 100px;
+    text-align: left;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.invoice-table tbody tr {
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.invoice-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.invoice-table tbody tr.primary-row {
+    background-color: #f0f9ff;
+}
+
+.invoice-table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8125rem;
+    color: #111827;
+}
+
+.invoice-table .col-price {
+    text-align: right;
+    font-weight: 600;
+    color: #111827;
+}
+
+.member-email {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 0.2rem;
+    font-weight: 400;
+}
+
+.primary-badge-small {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.125rem 0.5rem;
+    background: #3b82f6;
+    color: white;
+    border-radius: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.primary-indicator {
+    display: inline-block;
+    color: #3b82f6;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.invoice-table tfoot {
+    background-color: #f9fafb;
+    border-top: 2px solid #e5e7eb;
+}
+
+.invoice-table .total-row {
+    font-weight: 700;
+}
+
+.invoice-table .total-label {
+    text-align: right;
+    padding: 0.75rem;
+    font-size: 0.875rem;
+    color: #111827;
+}
+
+.invoice-table .total-amount {
+    text-align: right;
+    padding: 0.75rem;
+    font-size: 1rem;
+    color: #111827;
+}
+
+.invoice-footer {
+    padding-top: 1.5rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.invoice-note {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: #6b7280;
+    line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+    .membership-invoice {
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .invoice-header {
+        flex-direction: column;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+    }
+    
+    .invoice-date {
+        text-align: left;
+    }
+    
+    .invoice-billing-info {
+        margin-bottom: 1rem;
+    }
+    
+    .invoice-table {
+        font-size: 0.7rem;
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        min-width: 450px; /* Ensure minimum width for all columns */
+    }
+    
+    .invoice-table thead,
+    .invoice-table tbody,
+    .invoice-table tfoot {
+        display: table;
+        width: 100%;
+        table-layout: auto;
+    }
+    
+    .invoice-table th {
+        padding: 0.75rem 0.4rem;
+        font-size: 0.7rem;
+        white-space: nowrap;
+        min-width: fit-content;
+    }
+    
+    .invoice-table td {
+        padding: 0.5rem 0.4rem;
+        font-size: 0.7rem;
+    }
+    
+    .invoice-table .col-primary {
+        width: 40px;
+        min-width: 40px;
+    }
+    
+    .invoice-table .col-member {
+        min-width: 90px;
+    }
+    
+    .invoice-table .col-type {
+        min-width: 100px;
+    }
+    
+    .invoice-table .col-price {
+        min-width: 70px;
+    }
+    
+    .invoice-table .col-subscription {
+        min-width: 90px;
+    }
+    
+    .member-email {
+        font-size: 0.65rem;
+    }
+}
+
+/* Membership Signup Wizard Styles */
+.wizard-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10000;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 1rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.wizard-modal > form,
+.wizard-modal > div {
+    background: white;
+    border-radius: 12px;
+    max-width: 800px;
+    width: 100%;
+    max-height: calc(100vh - 2rem);
+    margin: 1rem auto;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+.wizard-modal > form > div {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.wizard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    flex-shrink: 0;
+}
+
+.wizard-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #111827;
+}
+
+.wizard-close-btn {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 0;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.wizard-close-btn:hover {
+    background: #f3f4f6;
+}
+
+.wizard-progress {
+    display: flex;
+    padding: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    overflow-x: auto;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    -webkit-overflow-scrolling: touch;
+}
+
+.wizard-progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
+.wizard-progress-number {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e5e7eb;
+    color: #6b7280;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.wizard-progress-step.active .wizard-progress-number {
+    background: #3b82f6;
+    color: white;
+}
+
+.wizard-progress-step.completed .wizard-progress-number {
+    background: var(--stoic-green);
+    color: white;
+}
+
+.wizard-progress-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-align: center;
+}
+
+.wizard-progress-step.active .wizard-progress-label {
+    color: #3b82f6;
+    font-weight: 600;
+}
+
+.wizard-content {
+    padding: 2rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
+}
+
+.wizard-step-content {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.wizard-step-content h3 {
+    margin: 0 0 1.5rem 0;
+    font-size: 1.25rem;
+    color: #111827;
+}
+
+.wizard-actions {
+    display: flex;
+    gap: 1rem;
+    padding: 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    flex-shrink: 0;
+}
+
+.wizard-actions .btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.wizard-actions .btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.wizard-actions .btn-primary:hover {
+    background: #2563eb;
+}
+
+.wizard-actions .btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.wizard-actions .btn-secondary:hover {
+    background: #4b5563;
+}
+
+.button-choice-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.btn-choice {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e5e7eb;
+    background: white;
+    color: #374151;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-choice:hover {
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.btn-choice.active {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+}
+
+.btn-choice-left {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.btn-choice-right {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.form-help-text {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+}
+
+.info-message {
+    padding: 1rem;
+    background: #dbeafe;
+    border: 1px solid #93c5fd;
+    border-radius: 6px;
+    color: #1e40af;
+}
+
+@media (max-width: 768px) {
+    .wizard-modal {
+        padding: 0;
+        align-items: stretch;
+    }
+    
+    .wizard-modal > div {
+        max-height: 100vh;
+        margin: 0;
+        border-radius: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .wizard-header {
+        padding: 1rem;
+    }
+    
+    .wizard-header h2 {
+        font-size: 1.25rem;
+    }
+    
+    .wizard-progress {
+        padding: 1rem;
+        gap: 0.25rem;
+    }
+    
+    .wizard-progress-step {
+        min-width: 60px;
+    }
+    
+    .wizard-progress-number {
+        width: 1.75rem;
+        height: 1.75rem;
+        font-size: 0.75rem;
+    }
+    
+    .wizard-progress-label {
+        font-size: 0.65rem;
+    }
+    
+    .wizard-content {
+        padding: 1rem;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .wizard-step-content {
+        max-width: 100%;
+    }
+    
+    .wizard-step-content h3 {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .wizard-actions {
+        flex-direction: column;
+        padding: 1rem;
+        gap: 0.75rem;
+    }
+    
+    .wizard-actions .btn {
+        width: 100%;
+    }
+    
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    
+    .form-group label {
+        font-size: 0.9rem;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        font-size: 1rem;
+        padding: 0.75rem;
+    }
+    
+    .primary-indicator {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .wizard-header {
+        padding: 0.75rem;
+    }
+    
+    .wizard-header h2 {
+        font-size: 1.1rem;
+    }
+    
+    .wizard-progress {
+        padding: 0.75rem;
+    }
+    
+    .wizard-progress-step {
+        min-width: 50px;
+    }
+    
+    .wizard-progress-number {
+        width: 1.5rem;
+        height: 1.5rem;
+        font-size: 0.7rem;
+    }
+    
+    .wizard-progress-label {
+        font-size: 0.6rem;
+    }
+    
+    .wizard-content {
+        padding: 0.75rem;
+    }
+    
+    .wizard-actions {
+        padding: 0.75rem;
+    }
+}
+
+/* --- Subscription dashboard: force Stoic green #047857; neutral Type/Tier pill (not blue) --- */
+.subscription-summary .summary-item.status-active,
+.subscription-summary .summary-item.expires-normal {
+    background-color: #047857 !important;
+    background-image: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    box-shadow: 0 1px 2px rgba(4, 120, 87, 0.35) !important;
+}
+
+.subscription-summary .summary-item.status-active .summary-label,
+.subscription-summary .summary-item.expires-normal .summary-label {
+    color: rgba(255, 255, 255, 0.92) !important;
+}
+
+.subscription-summary .summary-item.status-active .summary-value,
+.subscription-summary .summary-item.expires-normal .summary-value {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+}
+
+.gym-membership-card .subscription-summary .summary-item.tier-blue,
+.subscription-card .subscription-summary .summary-item.tier-blue,
+#gymMembershipStatus .subscription-summary .summary-item.tier-blue {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
+    box-shadow: none !important;
+}
+
+.gym-membership-card .subscription-summary .summary-item.tier-blue .summary-label,
+.subscription-card .subscription-summary .summary-item.tier-blue .summary-label,
+#gymMembershipStatus .subscription-summary .summary-item.tier-blue .summary-label {
+    color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.gym-membership-card .subscription-summary .summary-item.tier-blue .summary-value,
+.subscription-card .subscription-summary .summary-item.tier-blue .summary-value,
+#gymMembershipStatus .subscription-summary .summary-item.tier-blue .summary-value {
+    color: #f3f4f6 !important;
+}
+
+.subscription-card .subscription-renewal-notice {
+    background: rgba(4, 120, 87, 0.16) !important;
+    border-left-color: #047857 !important;
+    color: rgba(255, 255, 255, 0.93) !important;
+}
+
+.gym-membership-card .subscription-description-small,
+.subscription-card .subscription-description-small {
+    color: rgba(255, 255, 255, 0.78) !important;
+}

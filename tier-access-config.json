@@ -1,0 +1,329 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$comment": "Centralized configuration for tier-based feature access control. This file defines what features each subscription tier can access and their limits.",
+  "version": "1.0.0",
+  "lastUpdated": "2026-01-21",
+  "tiers": {
+    "tier_one": {
+      "name": "Tier One",
+      "price": 0.00,
+      "subscriptionDays": 10,
+      "autoExpires": true,
+      "description": "FREE - View today's workout for 4 consecutive days. Automatically expires after 10 days."
+    },
+    "tier_two": {
+      "name": "Tier Two",
+      "price": 7.00,
+      "subscriptionDays": 30,
+      "autoExpires": false,
+      "description": "$7.00/month - View today's workout for 8 consecutive days. 30-day subscription, automatically renews."
+    },
+    "tier_three": {
+      "name": "Tier Three",
+      "price": 12.00,
+      "subscriptionDays": 30,
+      "autoExpires": false,
+      "description": "$12.00/month - 5-day workout window: view 2 days prior, today, and 2 days after. 30-day subscription, automatically renews."
+    },
+    "tier_four": {
+      "name": "Tier Four",
+      "price": 18.00,
+      "subscriptionDays": 30,
+      "autoExpires": false,
+      "description": "$18.00/month - Full month of workouts: past, current, and upcoming. 30-day subscription, automatically renews."
+    }
+  },
+  "features": {
+    "functional_fitness_workouts": {
+      "name": "Functional Fitness Workouts",
+      "type": "date_based",
+      "requiresActiveSubscription": true,
+      "tierAccess": {
+        "tier_one": {
+          "access": true,
+          "dateRule": {
+            "type": "today_only",
+            "description": "Only today's workout. 4 consecutive days total viewing allowed."
+          },
+          "consecutiveDaysLimit": 4
+        },
+        "tier_two": {
+          "access": true,
+          "dateRule": {
+            "type": "today_only",
+            "description": "Only today's workout. 8 consecutive days total viewing allowed."
+          },
+          "consecutiveDaysLimit": 8
+        },
+        "tier_three": {
+          "access": true,
+          "dateRule": {
+            "type": "window",
+            "daysBefore": 2,
+            "daysAfter": 2,
+            "description": "5-day workout window: view 2 days prior, today, and 2 days after"
+          }
+        },
+        "tier_four": {
+          "access": true,
+          "dateRule": {
+            "type": "unlimited",
+            "description": "Full month of workouts: past, current, and upcoming. Only restricted by subscription period."
+          }
+        }
+      }
+    },
+    "core_finishers": {
+      "name": "Core Finishers",
+      "type": "count_based",
+      "requiresActiveSubscription": true,
+      "tierAccess": {
+        "tier_one": {
+          "access": true,
+          "limit": 1,
+          "limitType": "total",
+          "description": "1 Core Finisher"
+        },
+        "tier_two": {
+          "access": true,
+          "limit": 5,
+          "limitType": "first_n",
+          "description": "First 5 Core Finishers"
+        },
+        "tier_three": {
+          "access": true,
+          "limit": 10,
+          "limitType": "first_n",
+          "description": "First 10 Core Finishers"
+        },
+        "tier_four": {
+          "access": true,
+          "limit": null,
+          "limitType": "unlimited",
+          "description": "Unlimited Core Finishers"
+        }
+      }
+    },
+    "strength_phase_one": {
+      "name": "Strength Phase One",
+      "type": "phase_access",
+      "requiresActiveSubscription": true,
+      "tierAccess": {
+        "tier_one": {
+          "access": true,
+          "workoutLimit": 1,
+          "description": "Access to Phase One (limited to 1 workout)"
+        },
+        "tier_two": {
+          "access": true,
+          "workoutLimit": null,
+          "description": "Full access to Strength Phase One"
+        },
+        "tier_three": {
+          "access": true,
+          "workoutLimit": null,
+          "description": "Full access to Strength Phase One"
+        },
+        "tier_four": {
+          "access": true,
+          "workoutLimit": null,
+          "description": "Full access to Strength Phase One"
+        }
+      }
+    },
+    "strength_phase_two": {
+      "name": "Strength Phase Two",
+      "type": "phase_access",
+      "requiresActiveSubscription": true,
+      "tierAccess": {
+        "tier_one": {
+          "access": false,
+          "description": "No access to Phase Two"
+        },
+        "tier_two": {
+          "access": false,
+          "description": "No access to Phase Two"
+        },
+        "tier_three": {
+          "access": false,
+          "description": "No access to Phase Two (Phase One only)"
+        },
+        "tier_four": {
+          "access": true,
+          "workoutLimit": null,
+          "description": "Full access to Strength Phase Two"
+        }
+      }
+    },
+    "strength_phase_three": {
+      "name": "Strength Phase Three",
+      "type": "phase_access",
+      "requiresActiveSubscription": true,
+      "tierAccess": {
+        "tier_one": {
+          "access": false,
+          "description": "No access to Phase Three"
+        },
+        "tier_two": {
+          "access": false,
+          "description": "No access to Phase Three"
+        },
+        "tier_three": {
+          "access": false,
+          "description": "No access to Phase Three"
+        },
+        "tier_four": {
+          "access": true,
+          "workoutLimit": null,
+          "description": "Full access to Strength Phase Three"
+        }
+      }
+    },
+    "meal_plan_calculator": {
+      "name": "Meal Plan Calculator",
+      "type": "count_based",
+      "requiresActiveSubscription": true,
+      "tierAccess": {
+        "tier_one": {
+          "access": true,
+          "limit": 1,
+          "limitType": "total",
+          "canSaveInputs": false,
+          "canSaveMealPlan": false,
+          "description": "1 meal plan calculation (complete flow, then locks)"
+        },
+        "tier_two": {
+          "access": true,
+          "limit": 2,
+          "limitType": "total",
+          "canSaveInputs": false,
+          "canSaveMealPlan": false,
+          "description": "2 meal plan calculations (complete flow each time, then locks)"
+        },
+        "tier_three": {
+          "access": true,
+          "limit": 3,
+          "limitType": "total",
+          "canSaveInputs": true,
+          "canSaveMealPlan": true,
+          "mealPlanSaveLimit": 1,
+          "description": "3 meal plan calculations + saves inputs. Save up to 1 meal plan."
+        },
+        "tier_four": {
+          "access": true,
+          "limit": null,
+          "limitType": "unlimited",
+          "canSaveInputs": true,
+          "canSaveMealPlan": true,
+          "mealPlanSaveLimit": 1,
+          "description": "Unlimited meal plan calculations + saves inputs. Save up to 1 meal plan."
+        }
+      }
+    },
+    "body_composition_measurements": {
+      "name": "Body Composition Measurements",
+      "type": "count_based",
+      "requiresActiveSubscription": true,
+      "tierAccess": {
+        "tier_one": {
+          "access": true,
+          "limit": 2,
+          "limitType": "total",
+          "description": "2 body composition measurements"
+        },
+        "tier_two": {
+          "access": true,
+          "limit": 5,
+          "limitType": "total",
+          "description": "5 body composition measurements"
+        },
+        "tier_three": {
+          "access": true,
+          "limit": 8,
+          "limitType": "total",
+          "description": "8 body composition measurements"
+        },
+        "tier_four": {
+          "access": true,
+          "limit": null,
+          "limitType": "unlimited",
+          "description": "Unlimited body composition measurements"
+        }
+      }
+    },
+    "one_rm_lifts": {
+      "name": "1RM Lifts (Progressive Overload)",
+      "type": "count_based",
+      "requiresActiveSubscription": true,
+      "tierAccess": {
+        "tier_one": {
+          "access": true,
+          "limit": 3,
+          "limitType": "total",
+          "description": "3 saved 1RM lifts"
+        },
+        "tier_two": {
+          "access": true,
+          "limit": 5,
+          "limitType": "total",
+          "description": "5 saved 1RM lifts"
+        },
+        "tier_three": {
+          "access": true,
+          "limit": 10,
+          "limitType": "total",
+          "description": "10 saved 1RM lifts"
+        },
+        "tier_four": {
+          "access": true,
+          "limit": 15,
+          "limitType": "total",
+          "description": "15 saved 1RM lifts"
+        }
+      }
+    }
+  },
+  "legacyTierMapping": {
+    "daily": "tier_two",
+    "weekly": "tier_three",
+    "monthly": "tier_four"
+  },
+  "accessCheckRules": {
+    "requiresActiveStatus": true,
+    "allowedStatuses": ["active", "trialing", "free_trial", "grace_period"],
+    "stripeStatusTakesPriority": true,
+    "checkSubscriptionPeriod": true
+  },
+  "limitEnforcement": {
+    "core_finishers": {
+      "enforcedAt": "database",
+      "method": "count_viewed_records",
+      "table": "core_finishers_viewed"
+    },
+    "meal_plan_calculator": {
+      "enforcedAt": "database",
+      "method": "count_calculation_records",
+      "table": "meal_plan_calculations"
+    },
+    "body_composition_measurements": {
+      "enforcedAt": "database",
+      "method": "count_measurement_records",
+      "table": "body_composition_measurements"
+    },
+    "one_rm_lifts": {
+      "enforcedAt": "database",
+      "method": "count_pr_log_records",
+      "table": "pr_logs"
+    },
+    "strength_phase_one": {
+      "enforcedAt": "frontend_or_backend",
+      "method": "filter_workouts_by_limit",
+      "note": "Tier One limit of 1 workout should be enforced when fetching workouts"
+    },
+    "functional_fitness_workouts": {
+      "enforcedAt": "backend",
+      "method": "date_based_filtering",
+      "function": "hasAccessToDate"
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "description": "Schema for creating a new gym membership member",
+  "developerNotes": {
+    "important": [
+      "memberId and householdId are system-generated",
+      "billingOwnerMemberId is the single source of truth for who pays",
+      "group.discountActive is derived, not user-controlled",
+      "pauseUsed enforces 1 pause per contract",
+      "expectingRecovering object is only valid when: gender == FEMALE AND membershipType == EXPECTING_RECOVERING",
+      "family object is only populated when membershipType == FULL_FAMILY"
+    ]
+  },
+  "memberId": "UUID",
+  "accountId": "UUID",
+  "householdId": "UUID",
+  "profile": {
+    "firstName": "string",
+    "lastName": "string",
+    "dateOfBirth": "YYYY-MM-DD",
+    "gender": "MALE | FEMALE | PREFER_NOT_TO_SAY",
+    "email": "string",
+    "phone": "string"
+  },
+  "address": {
+    "street": "string",
+    "city": "string",
+    "state": "string",
+    "zip": "string"
+  },
+  "membership": {
+    "membershipType": "STANDARD | IMMEDIATE_FAMILY | EXPECTING_RECOVERING | FULL_FAMILY",
+    "status": "ACTIVE | PAUSED | INACTIVE | EXPIRED",
+    "membershipStartDate": "YYYY-MM-DD",
+    "note": "EXPIRED status is system-generated when contract ends without renewal"
+  },
+  "contract": {
+    "contractStartDate": "YYYY-MM-DD",
+    "contractEndDate": "YYYY-MM-DD",
+    "contractLengthMonths": 12,
+    "earlyCancellationFeeDollars": "number — max(100, 2 × published monthly rate for membership type)",
+    "earlyCancellationFeePolicy": "two_months_of_monthly_rate_minimum_100",
+    "pauseUsed": false,
+    "note": "pauseUsed is a boolean that enforces maxPausesPerContract: 1. Once set to true, cannot be reset until contract renewal"
+  },
+  "household": {
+    "householdRole": "PRIMARY | DEPENDENT | INDEPENDENT",
+    "primaryMemberId": "UUID | null",
+    "billingOwnerMemberId": "UUID",
+    "billingMode": "BILL_TO_PRIMARY | BILL_TO_SELF | null"
+  },
+  "expectingRecovering": {
+    "isEligible": false,
+    "selfAttestedAt": "ISO_TIMESTAMP | null"
+  },
+  "family": {
+    "isFamilyPass": false,
+    "familyMemberCount": null,
+    "familyBillingOwnerEmail": null
+  },
+  "group": {
+    "joinGroup": false,
+    "groupId": "UUID | null",
+    "groupCode": "string | null",
+    "joinedAt": "ISO_TIMESTAMP | null",
+    "discountActive": false,
+    "discountPercent": 15,
+    "minMembersForDiscount": 5,
+    "discountEffectiveTiming": "NEXT_BILLING_CYCLE",
+    "note": "discountActive is derived, not user-controlled. discountPercent, minMembersForDiscount, and discountEffectiveTiming values come from membership-rules.json groupRules"
+  },
+  "pause": {
+    "pauseRequestedAt": "ISO_TIMESTAMP | null",
+    "pauseStartDate": "YYYY-MM-DD | null",
+    "pauseEndDate": "YYYY-MM-DD | null",
+    "pauseEffectiveTiming": "NEXT_BILLING_CYCLE",
+    "chargeDuringPause": false,
+    "pausedCountsAsActive": true,
+    "note": "pauseEffectiveTiming, chargeDuringPause, and pausedCountsAsActive values come from membership-rules.json pauseRules"
+  },
+  "cancellation": {
+    "cancellationRequested": false,
+    "cancellationRequestedAt": "ISO_TIMESTAMP | null",
+    "cancellationEffectiveDate": "YYYY-MM-DD | null",
+    "cancellationFeeCharged": false,
+    "cancellationEffectiveTiming": "NEXT_BILLING_CYCLE",
+    "cancellationFeeChargeTiming": "IMMEDIATE",
+    "note": "cancellationEffectiveTiming and cancellationFeeChargeTiming values come from membership-rules.json contractRules"
+  },
+  "billingStatus": {
+    "lastSuccessfulPaymentAt": "ISO_TIMESTAMP | null",
+    "lastFailedPaymentAt": "ISO_TIMESTAMP | null",
+    "gracePeriodStartAt": "ISO_TIMESTAMP | null",
+    "gracePeriodDays": 10,
+    "lateFee": 15,
+    "lateFeeApplied": false,
+    "delinquent": false,
+    "note": "gracePeriodDays and lateFee values come from membership-rules.json paymentRules"
+  },
+  "acknowledgements": {
+    "membershipContractTermsAcceptedAt": "ISO_TIMESTAMP | null — contract dates, early cancellation fee, one free pause",
+    "membershipDisclosureAcceptedAt": "ISO_TIMESTAMP",
+    "waiverAcceptedAt": "ISO_TIMESTAMP",
+    "expectingRecoveringSelfAttestAt": "ISO_TIMESTAMP | null"
+  },
+  "emergencyContact": {
+    "name": "string | null",
+    "phone": "string | null"
+  },
+  "communicationPreferences": {
+    "preferredMethod": "EMAIL | SMS"
+  },
+  "audit": {
+    "createdAt": "ISO_TIMESTAMP",
+    "updatedAt": "ISO_TIMESTAMP"
+  }
+}
+

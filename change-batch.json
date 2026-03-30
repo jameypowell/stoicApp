@@ -1,0 +1,16 @@
+{
+  "Comment": "ACM validation for workouts.stoic-fit.com",
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "_456b3c7f01a7afacefc9b8564c171dfa.workouts.stoic-fit.com.",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          { "Value": "_6015acf293573aada011dfc2185e8baa.jkddzztszm.acm-validations.aws." }
+        ]
+      }
+    }
+  ]
+}

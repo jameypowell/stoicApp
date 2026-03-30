@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stoic Fitness | Option C — Scroll</title>
+  <link rel="icon" type="image/png" href="/images/favicon_white.png">
+  <link rel="apple-touch-icon" href="/images/favicon_white.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --dark: #111;
+      --darker: #0a0a0a;
+      --light: #fefefe;
+      --accent: #fbbf24;
+      --gray: #6b7280;
+    }
+    html { scroll-behavior: smooth; scroll-padding-top: 60px; }
+    body {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--darker);
+      color: var(--light);
+      line-height: 1.65;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    img { max-width: 100%; height: auto; display: block; }
+    a { color: inherit; text-decoration: none; }
+
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 0.875rem 1.25rem;
+      background: rgba(10,10,10,0.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .navbar-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo { height: 38px; width: auto; }
+    .nav-cta {
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      background: var(--accent);
+      color: #000;
+      border-radius: 6px;
+      transition: opacity 0.2s;
+    }
+    .nav-cta:hover { opacity: 0.9; }
+
+    .block {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 5rem 1.5rem 4rem;
+    }
+    .block-inner { max-width: 640px; margin: 0 auto; }
+    .block h1 {
+      font-size: clamp(2.25rem, 8vw, 3.5rem);
+      font-weight: 700;
+      line-height: 1.15;
+      margin-bottom: 1rem;
+    }
+    .block h1 .highlight { color: var(--accent); }
+    .block p {
+      font-size: 1.125rem;
+      color: var(--gray);
+      margin-bottom: 1.5rem;
+    }
+    .block .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 0 1.75rem;
+      font-size: 1rem;
+      font-weight: 600;
+      background: var(--accent);
+      color: #000;
+      border-radius: 8px;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .block .btn:hover { box-shadow: 0 4px 24px rgba(251,191,36,0.35); }
+    .block .btn:active { transform: scale(0.98); }
+
+    .block-alt { background: var(--dark); }
+    .block-alt h2 {
+      font-size: clamp(1.5rem, 4vw, 2rem);
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .block-alt ul {
+      list-style: none;
+      margin-top: 1rem;
+    }
+    .block-alt li {
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+    .block-alt li:last-child { border-bottom: none; }
+    .block-alt .bullet {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      margin-top: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .block-cta {
+      text-align: center;
+      padding: 4rem 1.5rem;
+    }
+    .block-cta h2 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    .block-cta p { color: var(--gray); margin-bottom: 1.5rem; }
+
+    .footer {
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: var(--gray);
+      font-size: 0.8125rem;
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <img src="/images/all_white_STOIC_long.png" alt="Stoic Fitness" class="logo" onerror="this.outerHTML='<span style=\'font-weight:700;font-size:1.2rem\'>STOIC</span>'">
+      <a href="https://app.stoic-fit.com" class="nav-cta">Open App</a>
+    </div>
+  </nav>
+
+  <main>
+    <section class="block" id="hero">
+      <div class="block-inner">
+        <h1>Train. Track. <span class="highlight">Thrive.</span></h1>
+        <p>Stoic Fitness is a functional fitness gym in Spanish Fork with an app that brings workouts, strength training, and nutrition to your phone.</p>
+        <a href="https://app.stoic-fit.com" class="btn">Get Started</a>
+      </div>
+    </section>
+
+    <section class="block block-alt" id="gym">
+      <div class="block-inner">
+        <h2>The Gym</h2>
+        <p>132 W Volunteer Dr, Spanish Fork, Utah. Full facility access, classes, and community.</p>
+        <ul>
+          <li><span class="bullet"></span><span>Functional Fitness, Yoga, High Fit, Open Gym</span></li>
+          <li><span class="bullet"></span><span>Membership or $5 drop-in</span></li>
+          <li><span class="bullet"></span><span>No long-term contract required</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="block" id="app">
+      <div class="block-inner">
+        <h2>The App</h2>
+        <p>Included with membership. Daily workouts, strength phases, core finishers, macro calculator, and body composition tracking.</p>
+        <a href="https://app.stoic-fit.com" class="btn">Open App</a>
+      </div>
+    </section>
+
+    <section class="block block-alt block-cta">
+      <div class="block-inner">
+        <h2>Ready?</h2>
+        <p>132 W Volunteer Dr, Spanish Fork, Utah 84660</p>
+        <a href="https://app.stoic-fit.com" class="btn">Join Now</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>&copy; Stoic Fitness</p>
+  </footer>
+</body>
+</html>

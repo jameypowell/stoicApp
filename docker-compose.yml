@@ -1,0 +1,13 @@
+# Single app service for local run. Deploy does not use this.
+# Start: docker compose up -d
+# Stop:  docker compose down
+services:
+  app:
+    build: .
+    container_name: stoic-shop-app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development

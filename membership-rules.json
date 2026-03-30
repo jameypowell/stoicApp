@@ -1,0 +1,176 @@
+{
+  "membershipTypes": {
+    "STANDARD": {
+      "name": "Standard",
+      "basePrice": 65,
+      "contractMonths": 12,
+      "eligibleForGroupDiscount": true,
+      "canBePrimary": true,
+      "canBeDependent": false,
+      "canBeIndependent": true,
+      "isFamilyPass": false
+    },
+    "IMMEDIATE_FAMILY": {
+      "name": "Immediate Family",
+      "basePrice": 50,
+      "contractMonths": 12,
+      "eligibleForGroupDiscount": true,
+      "canBePrimary": false,
+      "canBeDependent": true,
+      "canBeIndependent": true,
+      "isFamilyPass": false
+    },
+    "EXPECTING_RECOVERING": {
+      "name": "Expecting or Recovering Mother",
+      "basePrice": 30,
+      "contractMonths": 12,
+      "eligibleForGroupDiscount": true,
+      "canBePrimary": false,
+      "canBeDependent": true,
+      "canBeIndependent": true,
+      "isFamilyPass": false,
+      "canSwitchToStandard": true,
+      "groupDiscountStacks": true,
+      "genderRestriction": "FEMALE_ONLY",
+      "description": "This membership type is only available to females who are expecting or recovering from childbirth"
+    },
+    "FULL_FAMILY": {
+      "name": "Full Family",
+      "basePrice": 185,
+      "contractMonths": 12,
+      "eligibleForGroupDiscount": true,
+      "canBePrimary": true,
+      "canBeDependent": false,
+      "canBeIndependent": false,
+      "isFamilyPass": true,
+      "minMembers": 4,
+      "groupMemberEquivalentCount": 4,
+      "prorationAllowed": false
+    }
+  },
+  "roles": {
+    "PRIMARY": {
+      "canHaveDependents": true,
+      "canCancelWithActiveDependents": false,
+      "canPauseWithActiveDependents": true
+    },
+    "DEPENDENT": {
+      "canCancelSelf": true,
+      "canSwitchToIndependentPayer": true
+    },
+    "INDEPENDENT": {
+      "canHaveDependents": false,
+      "canCancelSelf": true,
+      "canPauseSelf": true,
+      "paysOwnBilling": true,
+      "description": "Independent member who pays their own fees and is not linked to a primary member"
+    }
+  },
+  "contractRules": {
+    "defaultContractMonths": 12,
+    "earlyCancellationFeeMonths": 2,
+    "earlyCancellationFeeMinimumDollars": 100,
+    "cancellationEffectiveTiming": "NEXT_BILLING_CYCLE",
+    "cancellationFeeChargeTiming": "IMMEDIATE",
+    "resetOnUpgradeToFamily": true,
+    "resetOnDependentToIndependent": false,
+    "resetOnPlanChangeStandardImmediateExpecting": false
+  },
+  "pauseRules": {
+    "maxPausesPerContract": 1,
+    "pauseEffectiveTiming": "NEXT_BILLING_CYCLE",
+    "chargeDuringPause": false,
+    "pausedCountsAsActive": true,
+    "familyPassPauseType": "ALL_OR_NONE"
+  },
+  "prorationRules": {
+    "billingPeriodDays": 30,
+    "applyProrationOnAddMember": true,
+    "applyProrationOnCancel": false,
+    "applyProrationOnFamilyPass": false
+  },
+  "groupRules": {
+    "enabled": true,
+    "discountPercent": 15,
+    "minMembersForDiscount": 5,
+    "countingRules": {
+      "STANDARD": 1,
+      "IMMEDIATE_FAMILY": 1,
+      "EXPECTING_RECOVERING": 1,
+      "FULL_FAMILY": 4
+    },
+    "pausedCountsTowardsGroup": true,
+    "inactiveCountsTowardsGroup": false,
+    "discountEffectiveTiming": "NEXT_BILLING_CYCLE",
+    "discountRemovalTimingWhenBelowMin": "NEXT_BILLING_CYCLE",
+    "familyPassRequiresExtraMemberForGroup": true,
+    "allowStackedDiscountsForExpectingRecovering": true
+  },
+  "billingOwnerRules": {
+    "primaryPaysForDependentsWhenDependentIsLinked": true,
+    "independentImmediateFamilyPaysOwnFees": true,
+    "dependentToIndependentEffectiveTiming": "NEXT_BILLING_CYCLE",
+    "dependentToIndependentContractResets": false,
+    "familyPassAlwaysSingleBillingItem": true
+  },
+  "cancellationFeeResponsibility": {
+    "dependentLinkedToPrimary": "PRIMARY",
+    "dependentIndependentPayer": "DEPENDENT"
+  },
+  "paymentRules": {
+    "gracePeriodDays": 10,
+    "lateFee": 15,
+    "inactiveTrigger": "UNPAID_AT_NEXT_BILLING_CYCLE",
+    "primaryNonPaymentMakesAllDependentsInactive": true
+  },
+  "statusDefinitions": {
+    "ACTIVE": {
+      "canAccessGym": true,
+      "countsForGroup": true,
+      "countsForFamilyPass": true
+    },
+    "PAUSED": {
+      "canAccessGym": false,
+      "countsForGroup": true,
+      "countsForFamilyPass": true,
+      "isBilled": false
+    },
+    "INACTIVE": {
+      "canAccessGym": false,
+      "countsForGroup": false,
+      "countsForFamilyPass": false,
+      "isBilled": false
+    }
+  },
+  "transitions": {
+    "pause": {
+      "from": ["ACTIVE"],
+      "to": "PAUSED",
+      "maxPerContract": 1,
+      "effectiveTiming": "NEXT_BILLING_CYCLE"
+    },
+    "unpause": {
+      "from": ["PAUSED"],
+      "to": "ACTIVE",
+      "effectiveTiming": "NEXT_BILLING_CYCLE"
+    },
+    "cancelEarly": {
+      "from": ["ACTIVE", "PAUSED"],
+      "to": "INACTIVE",
+      "feeBasis": "TWO_MONTHS_OF_MONTHLY_RATE_MINIMUM_100_DOLLARS",
+      "effectiveTiming": "NEXT_BILLING_CYCLE"
+    },
+    "setInactiveForNonPayment": {
+      "from": ["ACTIVE", "PAUSED"],
+      "to": "INACTIVE",
+      "trigger": "UNPAID_AT_NEXT_BILLING_CYCLE"
+    },
+    "reactivate": {
+      "from": ["INACTIVE"],
+      "to": "ACTIVE",
+      "conditions": ["ALL_BALANCES_PAID"]
+    }
+  }
+}
+
+
