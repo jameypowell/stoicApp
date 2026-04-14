@@ -3,7 +3,15 @@
 const express = require('express');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { calculateEndDate, normalizeTier } = require('./payments');
-const { getContractStartEndYmdFromSucceededPaymentIntent, computeGymContractEndYmdFromStartYmd } = require('./lib/gym-contract-dates');
+const {
+  getContractStartEndYmdFromSucceededPaymentIntent,
+  computeGymContractEndYmdFromStartYmd,
+  ymdFromUnixSecondsDenver,
+  nextGymContractEndYmdDenver,
+  gymBillingAnchorYmdFromMembershipRow,
+  gymContractStartYmdToPersistOnPayment,
+  nextAppSubscriptionEndIsoFromRow
+} = require('./lib/gym-contract-dates');
 const { tierFromStripeSubscription } = require('./stripe-subscription-resolve');
 
 // Payment rules (grace period, late fee) from membership-rules.json
@@ -113,7 +121,11 @@ function createWebhookRouter(db) {
             // Handle drop-in payments separately (no subscription)
             if (paymentIntent.metadata?.type === 'drop_in') {
               await handleDropInPaymentSuccess(paymentIntent, db);
-            } else if (paymentIntent.metadata?.type === 'gym_membership') {
+            } else if (
+              paymentIntent.metadata?.type === 'gym_membership' ||
+              paymentIntent.metadata?.type === 'gym_membership_renewal' ||
+              paymentIntent.metadata?.type === 'gym_membership_resume'
+            ) {
               await handleGymMembershipPaymentIntentSuccess(paymentIntent, db);
             } else {
               // Handle other one-time payments (app tiers)
@@ -223,6 +235,34 @@ function createWebhookRouter(db) {
           }
           break;
 
+        case 'charge.refunded': {
+          const refundedCharge = event.data.object;
+          const piField = refundedCharge.payment_intent;
+          const piId = typeof piField === 'string' ? piField : piField && piField.id;
+          if (!piId) {
+            console.warn(
+              `charge.refunded: no payment_intent on charge ${refundedCharge.id || '(no id)'}; cannot update payments row`
+            );
+            break;
+          }
+          const amount = Number(refundedCharge.amount) || 0;
+          const refunded = Number(refundedCharge.amount_refunded) || 0;
+          const status = amount > 0 && refunded >= amount ? 'refunded' : 'partially_refunded';
+          try {
+            const updated = await db.updatePayment(piId, status);
+            if (updated) {
+              console.log(`✅ Payment ${piId} marked ${status} (charge.refunded)`);
+            } else {
+              console.warn(
+                `charge.refunded: no payments row updated for stripe_payment_intent_id=${piId} (charge=${refundedCharge.id}, status=${status}, amount_refunded=${refunded}/${amount}). Row may be missing, use invoice id as key, or PI id mismatch.`
+              );
+            }
+          } catch (e) {
+            console.error('charge.refunded: could not update payment row:', e.message);
+          }
+          break;
+        }
+
         default:
           console.log(`Unhandled event type ${event.type}`);
       }
@@ -258,6 +298,13 @@ async function handleDropInPaymentSuccess(paymentIntent, db) {
       'succeeded',
       email
     );
+    const metaSig = String(paymentIntent.metadata?.waiverSignature || '').trim().slice(0, 200);
+    if (metaSig) {
+      const u = await db.getUserById(userId);
+      if (u && (!u.name || !String(u.name).trim())) {
+        await db.updateUserName(userId, metaSig);
+      }
+    }
     console.log(`Drop-in payment recorded: ${paymentIntent.id}`);
   } catch (error) {
     if (error.code === '23505' || error.code === 'SQLITE_CONSTRAINT' || /unique|duplicate/i.test(error.message || '')) {
@@ -272,12 +319,46 @@ async function handleDropInPaymentSuccess(paymentIntent, db) {
 // Ensures gym_memberships row exists and records payment, so table is populated even if /create or /confirm-payment never ran
 async function handleGymMembershipPaymentIntentSuccess(paymentIntent, db) {
   try {
-    const userId = parseInt(paymentIntent.metadata?.userId);
-    const membershipType = paymentIntent.metadata?.membershipType || 'standard';
-    if (!userId) {
-      console.error('Gym membership payment_intent.succeeded: missing userId in metadata');
+    const metaType = String(paymentIntent.metadata?.type || 'gym_membership');
+    const userId = parseInt(
+      paymentIntent.metadata?.userId ?? paymentIntent.metadata?.user_id,
+      10
+    );
+    const membershipType =
+      paymentIntent.metadata?.membershipType ||
+      paymentIntent.metadata?.membership_type ||
+      'standard';
+    if (!userId || Number.isNaN(userId)) {
+      console.error('Gym membership payment_intent.succeeded: missing userId/user_id', paymentIntent.id);
       return;
     }
+
+    // Nightly job (or admin) already advances contract_end_date; only ensure payments row exists.
+    if (metaType === 'gym_membership_renewal' || metaType === 'gym_membership_resume') {
+      const user = await db.getUserById(userId);
+      if (!user) {
+        console.error('Gym membership renewal/resume webhook: user not found', userId);
+        return;
+      }
+      try {
+        await db.createPayment(
+          userId,
+          paymentIntent.id,
+          paymentIntent.amount || 0,
+          paymentIntent.currency || 'usd',
+          'gym_membership',
+          'succeeded',
+          user.email || null
+        );
+        console.log(`Gym membership ${metaType} payment recorded for user ${userId}, pi=${paymentIntent.id}`);
+      } catch (payErr) {
+        if (payErr.code !== '23505' && payErr.code !== 'SQLITE_CONSTRAINT' && !/unique|duplicate/i.test(payErr.message || '')) {
+          console.error('Error recording gym renewal/resume payment:', payErr.message);
+        }
+      }
+      return;
+    }
+
     const piFull = await stripe.paymentIntents.retrieve(paymentIntent.id, { expand: ['latest_charge'] });
     const { contractStartYmd, contractEndYmd } = await getContractStartEndYmdFromSucceededPaymentIntent(stripe, piFull);
     if (!contractStartYmd || !contractEndYmd) {
@@ -340,7 +421,7 @@ async function handleGymMembershipPaymentIntentSuccess(paymentIntent, db) {
   }
 }
 
-// Handle one-time payment success (for BILLING_MODE=one_time)
+// Handle app-tier PaymentIntent success (metadata.userId + tier; DB row, no Stripe Subscription)
 async function handlePaymentSuccess(paymentIntent, db) {
   try {
     const { metadata } = paymentIntent;
@@ -661,20 +742,20 @@ async function handleInvoicePaymentSucceeded(invoice, db) {
       }
     }
 
-    // Calculate new expiration date: 30 days from payment date
-    // Use invoice paid_at if available, otherwise use current date
-    let paymentDate;
-    if (invoice.status_transitions && invoice.status_transitions.paid_at) {
-      paymentDate = new Date(invoice.status_transitions.paid_at * 1000);
-    } else {
-      paymentDate = new Date(); // Current date if paid_at not available
-    }
-    
-    // Set expiration to 30 days from payment date
-    const endDate = new Date(paymentDate);
-    endDate.setDate(endDate.getDate() + 30);
-    endDate.setHours(23, 59, 59, 999); // End of day
-    const endDateISO = endDate.toISOString();
+    const endDateISO =
+      nextAppSubscriptionEndIsoFromRow(existing) ||
+      (() => {
+        let paymentDate;
+        if (invoice.status_transitions && invoice.status_transitions.paid_at) {
+          paymentDate = new Date(invoice.status_transitions.paid_at * 1000);
+        } else {
+          paymentDate = new Date();
+        }
+        const endDate = new Date(paymentDate);
+        endDate.setDate(endDate.getDate() + 30);
+        endDate.setHours(23, 59, 59, 999);
+        return endDate.toISOString();
+      })();
 
     const oldStatus = existing.status;
     await db.updateSubscription(existing.id, {
@@ -715,7 +796,7 @@ async function handleInvoicePaymentSucceeded(invoice, db) {
       }
     }
 
-    console.log(`Subscription renewed for user ${existing.user_id}, new end date: ${endDateISO} (30 days from payment)`);
+    console.log(`Subscription renewed for user ${existing.user_id}, new end date: ${endDateISO}`);
   } catch (error) {
     console.error('Error handling invoice payment succeeded:', error);
   }
@@ -927,15 +1008,26 @@ async function handleGymMembershipSubscriptionDeleted(subscription, db) {
     );
 
     if (membership) {
-      // Set status to inactive
+      // Stripe subscription ended: clear Stripe ids so nightly PI billing can run without double-charging.
+      // Do not force inactive — member may continue on app-managed billing.
       await db.query(
         db.isPostgres
-          ? 'UPDATE gym_memberships SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2'
-          : 'UPDATE gym_memberships SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        ['inactive', membershipId]
+          ? `UPDATE gym_memberships SET
+               stripe_subscription_id = NULL,
+               stripe_subscription_item_id = NULL,
+               updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`
+          : `UPDATE gym_memberships SET
+               stripe_subscription_id = NULL,
+               stripe_subscription_item_id = NULL,
+               updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+        [membershipId]
       );
 
-      console.log(`✅ Gym membership subscription deleted for membership ${membershipId}, set to inactive`);
+      console.log(
+        `✅ Gym Stripe subscription cleared for membership ${membershipId} (app-managed billing eligible if status remains active).`
+      );
     }
   } catch (error) {
     console.error('Error handling gym membership subscription deleted:', error);
@@ -1015,38 +1107,36 @@ async function handleGymMembershipInvoicePaymentSucceeded(invoice, db) {
       }
     }
 
-    // Use Stripe's current period (source of truth after payment) to sync contract dates
-    let contractStartDate = membership.contract_start_date;
+    // Sync contract dates: calendar-month billing in America/Denver (aligned with app-managed gym policy).
+    let preferredStartYmd = null;
     let contractEndDate = membership.contract_end_date;
-    if (stripeSub.current_period_start && stripeSub.current_period_end) {
-      contractStartDate = new Date(stripeSub.current_period_start * 1000).toISOString().split('T')[0];
-      contractEndDate = new Date(stripeSub.current_period_end * 1000).toISOString().split('T')[0];
-      // App policy: next charge date is 30 calendar days after contract start (Mountain). Stripe UTC dates can yield a 29-day span.
-      if (contractStartDate && contractEndDate) {
-        const d0 = new Date(`${contractStartDate}T12:00:00Z`);
-        const d1 = new Date(`${contractEndDate}T12:00:00Z`);
-        const spanDays = Math.round((d1 - d0) / 86400000);
-        if (spanDays === 29) {
-          const normalized = computeGymContractEndYmdFromStartYmd(contractStartDate);
-          if (normalized) contractEndDate = normalized;
-        }
+    if (stripeSub.current_period_start) {
+      const startYmd = ymdFromUnixSecondsDenver(stripeSub.current_period_start);
+      if (startYmd) {
+        preferredStartYmd = startYmd;
+        contractEndDate = computeGymContractEndYmdFromStartYmd(startYmd);
       }
     } else {
-      // Fallback: extend by 30 days from current contract end
-      const currentContractEnd = membership.contract_end_date ? new Date(membership.contract_end_date) : new Date();
-      const newContractEnd = new Date(currentContractEnd);
-      newContractEnd.setDate(newContractEnd.getDate() + 30);
-      contractEndDate = newContractEnd.toISOString().split('T')[0];
+      const endPart =
+        membership.contract_end_date &&
+        String(membership.contract_end_date).trim().split('T')[0].split(' ')[0];
+      const anchor = gymBillingAnchorYmdFromMembershipRow(membership);
+      if (endPart && /^\d{4}-\d{2}-\d{2}$/.test(endPart) && anchor) {
+        const nextEnd = nextGymContractEndYmdDenver(endPart, anchor);
+        if (nextEnd) contractEndDate = nextEnd;
+      }
     }
+
+    const contractStartToPersist = gymContractStartYmdToPersistOnPayment(membership, preferredStartYmd);
 
     const oldStatus = membership.status;
     
     // Update membership contract dates from Stripe
     await db.query(
       db.isPostgres
-        ? 'UPDATE gym_memberships SET contract_start_date = COALESCE($1, contract_start_date), contract_end_date = $2, status = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4'
+        ? 'UPDATE gym_memberships SET contract_start_date = COALESCE($1::date, contract_start_date), contract_end_date = $2, status = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4'
         : 'UPDATE gym_memberships SET contract_start_date = COALESCE(?, contract_start_date), contract_end_date = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [contractStartDate, contractEndDate, 'active', membershipId]
+      [contractStartToPersist, contractEndDate, 'active', membershipId]
     );
     
     // Reset payment failures after successful payment (hybrid system)
@@ -1107,7 +1197,7 @@ async function handleGymMembershipInvoicePaymentSucceeded(invoice, db) {
       }
     }
 
-    console.log(`✅ Gym membership invoice payment succeeded for membership ${membershipId}, contract extended to ${newContractEnd.toISOString().split('T')[0]}`);
+    console.log(`✅ Gym membership invoice payment succeeded for membership ${membershipId}, contract extended to ${contractEndDate}`);
   } catch (error) {
     console.error('Error handling gym membership invoice payment succeeded:', error);
   }

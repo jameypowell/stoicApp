@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config({ override: true });
 
 const { initDatabase, Database } = require('./database');
 const createRouter = require('./routes');
@@ -166,6 +166,25 @@ async function startServer() {
         // Check if user exists
         let user = await db.getUserByEmail(email);
 
+        const clearDropInOnlyIfSet = async (u) => {
+          if (!u || !(u.drop_in_only_account === true || u.drop_in_only_account === 1)) return;
+          try {
+            if (db.isPostgres) {
+              await db.query(
+                'UPDATE users SET drop_in_only_account = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
+                [u.id]
+              );
+            } else {
+              await db.query(
+                "UPDATE users SET drop_in_only_account = 0, updated_at = datetime('now') WHERE id = ?",
+                [u.id]
+              );
+            }
+          } catch (e) {
+            console.warn('OAuth: could not clear drop_in_only_account:', e && e.message);
+          }
+        };
+
         if (!user) {
           // Create new user with placeholder password (OAuth users can't use password login)
           // Use a random hash that will never match
@@ -191,6 +210,8 @@ async function startServer() {
             console.log('Name column not available, skipping name update:', error.message);
           }
         }
+
+        await clearDropInOnlyIfSet(user);
 
         // Update last_login timestamp, IP, and location (same as email/password login)
         const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
@@ -292,12 +313,13 @@ async function startServer() {
       res.status(500).json({ error: 'Something went wrong!' });
     });
 
-    // Start nightly renewal job scheduler (only in production or if enabled)
-    if (process.env.NODE_ENV === 'production' || process.env.ENABLE_NIGHTLY_JOB === 'true') {
+    // Legacy invoice-based app renewal (nightly-renewal-job.js) is disabled: it overlapped in purpose with
+    // scripts/nightly-renewal-job.js and could double-charge users who also have Stripe-managed subscriptions.
+    // All manual off-session renewals run only from scripts/nightly-renewal-job.js (see cron below).
+    if (process.env.ENABLE_LEGACY_INVOICE_RENEWAL_JOB === 'true') {
       const { startScheduledJob } = require('./nightly-renewal-job');
       startScheduledJob();
-    } else {
-      console.log('ℹ️  Nightly renewal job disabled (set ENABLE_NIGHTLY_JOB=true to enable in development)');
+      console.log('⚠️  Legacy invoice renewal job ENABLED (ENABLE_LEGACY_INVOICE_RENEWAL_JOB=true) — not recommended in production.');
     }
 
     // Gym + app renewals: charge saved payment methods for memberships due or overdue (runs daily at 2am Mountain Time)

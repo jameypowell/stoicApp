@@ -9,8 +9,6 @@ const {
   createCustomer, 
   createPaymentIntent,
   getPaymentIntent,
-  createSubscription,
-  getSubscription,
   calculateEndDate,
   hasAccessToDate,
   calculateUpgradePrice,
@@ -20,7 +18,31 @@ const {
   normalizeTier
 } = require('./payments');
 const { getFeatureLimit } = require('./tier-access-config');
-const { subscriptionEndToYmdDenver, todayYmdDenver } = require('./lib/mountain-time');
+const {
+  subscriptionEndToYmdDenver,
+  todayYmdDenver,
+  ymdPlusCalendarDaysDenver,
+  parseGymAnchorToDenverStart
+} = require('./lib/mountain-time');
+const { DROP_IN_AMOUNT_CENTS, DROP_IN_FEE_DISPLAY } = require('./lib/drop-in-pricing');
+const { DateTime } = require('luxon');
+
+const APP_SCHEDULED_PAYMENT_TIERS = new Set(['tier_two', 'tier_three', 'tier_four', 'daily', 'weekly', 'monthly']);
+
+/** True if a succeeded app-tier payment exists for this user on or after the subscription renewal due date (Denver YMD). */
+function appRenewalPaidOnOrAfterDue(payments, item) {
+  const due = item && item.due_date;
+  if (!due || !Array.isArray(payments)) return false;
+  const uid = item.user_id;
+  for (const p of payments) {
+    if (Number(p.user_id) !== Number(uid)) continue;
+    if (String(p.status || '').toLowerCase() !== 'succeeded') continue;
+    if (!APP_SCHEDULED_PAYMENT_TIERS.has(String(p.tier || ''))) continue;
+    const ymd = subscriptionEndToYmdDenver(p.created_at);
+    if (ymd && ymd >= due) return true;
+  }
+  return false;
+}
 
 // Helper function to get client IP address
 function getClientIP(req) {
@@ -48,28 +70,30 @@ async function getLocationFromIP(ip) {
   return ip;
 }
 
-// Get Price ID for a tier (for Stripe subscriptions). Supports both legacy (daily/weekly/monthly) and new (tier_two/tier_three/tier_four) names.
-function getPriceIdForTier(tier) {
-  const priceMap = {
-    daily: process.env.STRIPE_PRICE_DAILY,
-    weekly: process.env.STRIPE_PRICE_WEEKLY,
-    monthly: process.env.STRIPE_PRICE_MONTHLY,
-    tier_two: process.env.STRIPE_PRICE_TIER_TWO || process.env.STRIPE_PRICE_DAILY,
-    tier_three: process.env.STRIPE_PRICE_TIER_THREE || process.env.STRIPE_PRICE_WEEKLY,
-    tier_four: process.env.STRIPE_PRICE_TIER_FOUR || process.env.STRIPE_PRICE_MONTHLY
-  };
-  return priceMap[tier];
-}
 const { membershipTypeToDb } = require('./utils/membership-mappings');
 const { syncWorkoutFromSlides, syncAllWorkoutsFromSlides } = require('./google-drive');
 const { syncAllGymMemberships } = require('./gym-membership-sync');
 const gymProfileSchema = require('./config/gym-member-profile-schema');
 const membershipContractRules = require('./config/membership-contract-rules');
-const { getContractStartEndYmdFromSucceededPaymentIntent } = require('./lib/gym-contract-dates');
+const {
+  getContractStartEndYmdFromSucceededPaymentIntent,
+  nextGymContractEndYmdDenver,
+  gymBillingAnchorYmdFromMembershipRow,
+  gymContractStartYmdToPersistOnPayment,
+  ymdFromUnixSecondsDenver,
+  advanceOneBillingPeriodDenver,
+  denverEndOfDayUnixFromYmd
+} = require('./lib/gym-contract-dates');
 const { reanchorGymContractForEmail } = require('./lib/reanchor-gym-contract');
 const { google } = require('googleapis');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { buildSubscriptionClientPayload } = require('./subscription-client-payload');
+const {
+  computeHouseholdMonthlyAmountCents,
+  membershipRules,
+  allocateHouseholdMonthlyLines
+} = require('./lib/household-monthly-cents');
+const { normalizeGymDiscountDisplayName } = require('./lib/gym-discount-display-name');
 
 /**
  * After a succeeded gym-related PaymentIntent, attach PM to customer, set defaults, and persist on gym_memberships
@@ -406,6 +430,19 @@ async function fetchExtraHouseholdFamilyMembersForDiscountGroup(db, directRows) 
 function createRouter(db) {
   const router = express.Router();
 
+  /**
+   * Align with getUserByEmail (trim + lowercase only).
+   * Do not use validator's normalizeEmail() default here: it strips Gmail dots and breaks lookups when
+   * the DB still stores dotted addresses (e.g. admin "Generate code" sends the exact users.email).
+   */
+  function emailBodyLooseMatchDb() {
+    return body('email')
+      .trim()
+      .notEmpty()
+      .isEmail()
+      .customSanitizer((v) => String(v).trim().toLowerCase());
+  }
+
   /** DB subscription rows that grant normal app access (aligned with getUserActiveSubscription). */
   function subscriptionRowGrantsAccess(sub) {
     if (!sub) return false;
@@ -442,7 +479,31 @@ function createRouter(db) {
         // Check if user already exists
         const existingUser = await db.getUserByEmail(email);
         if (existingUser) {
-          return res.status(400).json({ error: 'User already exists' });
+          const dropInOnlyClaim =
+            existingUser.drop_in_only_account === true || existingUser.drop_in_only_account === 1;
+          if (!dropInOnlyClaim) {
+            return res.status(400).json({ error: 'User already exists' });
+          }
+          const bcrypt = require('bcryptjs');
+          const passwordHash = await bcrypt.hash(password, 10);
+          if (db.isPostgres) {
+            await db.query(
+              `UPDATE users SET password_hash = $1, drop_in_only_account = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+              [passwordHash, existingUser.id]
+            );
+          } else {
+            await db.query(
+              `UPDATE users SET password_hash = ?, drop_in_only_account = 0, updated_at = datetime('now') WHERE id = ?`,
+              [passwordHash, existingUser.id]
+            );
+          }
+          const token = generateToken(existingUser.id);
+          return res.status(201).json({
+            message:
+              'Account ready. Your past drop-in charges stay on this email—open Gym → Payment history after you sign in.',
+            user: { id: existingUser.id, email: existingUser.email },
+            token
+          });
         }
 
         // Create user
@@ -532,10 +593,52 @@ function createRouter(db) {
     }
   );
 
+  /**
+   * Member requests a 6-digit login code from staff (no automated email).
+   * Always responds with a generic success message when the account exists and is email/password-based.
+   */
+  router.post('/auth/request-login-code-from-staff',
+    [
+      body('email').isEmail().normalizeEmail(),
+      body('member_note').optional().isString().isLength({ max: 2000 })
+    ],
+    async (req, res) => {
+      try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+          return res.status(400).json({ errors: errors.array() });
+        }
+        const email = req.body.email;
+        const memberNote = req.body.member_note;
+        const genericOk = {
+          message:
+            'If an account exists for that email, your request was saved. Stoic Fit staff will provide a 6-digit code. ' +
+            'Enter that code in the Password field on the login screen, then create a new password when prompted.'
+        };
+        const user = await db.getUserByEmail(email);
+        if (!user) {
+          return res.json(genericOk);
+        }
+        if (user.password_hash && String(user.password_hash).startsWith('OAUTH_USER_')) {
+          return res.json({
+            message:
+              'This email is set up for Google sign-in. Use the “Sign in with Google” button on the login page. ' +
+              'If you need help, contact Stoic Fit staff.'
+          });
+        }
+        await db.insertLoginCodeRequest(user.id, user.email || email, memberNote);
+        return res.json(genericOk);
+      } catch (error) {
+        console.error('request-login-code-from-staff error:', error);
+        res.status(500).json({ error: 'Could not submit request. Please try again later.' });
+      }
+    }
+  );
+
   // Complete admin-issued temporary code login by setting a new password.
   router.post('/auth/complete-temp-login',
     [
-      body('email').isEmail().normalizeEmail(),
+      emailBodyLooseMatchDb(),
       body('tempCode').matches(/^\d{6}$/),
       body('newPassword').isLength({ min: 6 })
     ],
@@ -1239,6 +1342,38 @@ function createRouter(db) {
     }
   });
 
+  // Get buddy passes (admin only)
+  router.get('/admin/buddy-passes', authenticateToken, async (req, res) => {
+    try {
+      const user = await db.getUserById(req.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const result = await db.query(
+        db.isPostgres
+          ? `SELECT bp.id, bp.member_user_id, bp.buddy_user_id, bp.buddy_name, bp.buddy_phone, bp.buddy_email,
+                    bp.visit_date, bp.class_time, bp.class_name, bp.pin, bp.status, bp.created_at, bp.confirmed_at, bp.cancelled_at,
+                    mu.email AS member_email, mu.name AS member_name
+             FROM buddy_passes bp
+             LEFT JOIN users mu ON mu.id = bp.member_user_id
+             ORDER BY bp.created_at DESC`
+          : `SELECT bp.id, bp.member_user_id, bp.buddy_user_id, bp.buddy_name, bp.buddy_phone, bp.buddy_email,
+                    bp.visit_date, bp.class_time, bp.class_name, bp.pin, bp.status, bp.created_at, bp.confirmed_at, bp.cancelled_at,
+                    mu.email AS member_email, mu.name AS member_name
+             FROM buddy_passes bp
+             LEFT JOIN users mu ON mu.id = bp.member_user_id
+             ORDER BY bp.created_at DESC`,
+        []
+      );
+      const passes = (result && result.rows) ? result.rows : [];
+      res.json({ buddy_passes: passes });
+    } catch (error) {
+      console.error('Get admin buddy passes error:', error);
+      res.status(500).json({ error: 'Failed to get buddy passes' });
+    }
+  });
+
   // Get free trials list (admin only)
   router.get('/admin/free-trials', authenticateToken, async (req, res) => {
     try {
@@ -1458,12 +1593,209 @@ function createRouter(db) {
         return res.status(403).json({ error: 'Admin access required' });
       }
       const limitRaw = parseInt(req.query.limit, 10);
-      const limit = Number.isFinite(limitRaw) && limitRaw > 0 && limitRaw <= 5000 ? limitRaw : 2000;
-      const rows = await db.getPastTransactionsAdmin(limit);
-      res.json({ limit, payments: rows });
+      let limit = Number.isFinite(limitRaw) && limitRaw > 0 && limitRaw <= 5000 ? limitRaw : 2000;
+      const monthRaw = (req.query.month && String(req.query.month).trim()) || '';
+      const monthOk = /^\d{4}-\d{2}$/.test(monthRaw);
+      const month = monthOk ? monthRaw : null;
+      if (month) {
+        limit = Math.max(limit, 5000);
+      }
+      const rows = await db.getPastTransactionsAdmin(limit, month ? { month } : {});
+      res.json({ limit, month: month || null, payments: rows });
     } catch (error) {
       console.error('Get past transactions error:', error);
       res.status(500).json({ error: 'Failed to load past transactions' });
+    }
+  });
+
+  /** Admin: payments charged in + scheduled dues due in the current calendar month (America/Denver). */
+  router.get('/admin/current-month-transactions', authenticateToken, async (req, res) => {
+    try {
+      const user = await db.getUserById(req.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+      const todayStr = todayYmdDenver();
+      const monthQueryRaw = (req.query.month && String(req.query.month).trim()) || '';
+      const monthQueryMatch = /^(\d{4})-(\d{2})$/.exec(monthQueryRaw);
+      let ym = todayStr.substring(0, 7);
+      if (monthQueryMatch) {
+        const mq = parseInt(monthQueryMatch[2], 10);
+        if (mq >= 1 && mq <= 12) ym = monthQueryRaw;
+      }
+      const [yStr, mStr] = ym.split('-');
+      const y = parseInt(yStr, 10);
+      const mo = parseInt(mStr, 10);
+      const monthLabel = DateTime.fromObject({ year: y, month: mo, day: 1 }, { zone: 'America/Denver' }).toFormat(
+        'LLLL yyyy'
+      );
+
+      const payments = await db.getPastTransactionsAdminDenverMonth(ym);
+      const allUsers = await db.getAdminUsersForTransactionsList();
+      const gymRows = await db.getAdminGymScheduledInDenverMonthWindow(ym);
+      const appRows = await db.getAdminAppScheduledInDenverMonthWindow(ym);
+
+      const tierAppLabel = (tier) => {
+        const t = String(tier || '');
+        const map = {
+          tier_two: 'Tier Two',
+          tier_three: 'Tier Three',
+          tier_four: 'Tier Four',
+          daily: 'Daily',
+          weekly: 'Weekly',
+          monthly: 'Monthly'
+        };
+        return map[t] || t.replace(/^tier_/, '').replace(/_/g, ' ') || 'App';
+      };
+
+      const dueInMonth = (dueStr) => typeof dueStr === 'string' && dueStr.length >= 7 && dueStr.substring(0, 7) === ym;
+
+      const gymItems = gymRows
+        .map((m) => {
+          const dueStr = subscriptionEndToYmdDenver(m.due_date_source || m.contract_end_date);
+          let daysUntilDue = dueStr
+            ? Math.floor((new Date(`${dueStr}T12:00:00`) - new Date(`${todayStr}T12:00:00`)) / 86400000)
+            : null;
+          const paidStr = subscriptionEndToYmdDenver(m.last_success_gym_payment_at);
+          if (daysUntilDue != null && daysUntilDue < 0 && dueStr && paidStr && paidStr >= dueStr) {
+            daysUntilDue = 0;
+          }
+          return {
+            kind: 'gym',
+            user_id: m.user_id,
+            name: m.name,
+            email: m.email,
+            due_date: dueStr,
+            days_until_due: daysUntilDue,
+            is_overdue: daysUntilDue != null ? daysUntilDue < 0 : false,
+            amount_due_cents: m.amount_due_cents ?? m.monthly_amount_cents,
+            has_payment_method: !!m.payment_method_id,
+            has_stripe_customer: !!m.stripe_customer_id,
+            label: `Gym · ${String(m.membership_type || '').replace(/_/g, ' ') || 'membership'}`,
+            _gym_last_paid_ymd: paidStr || null
+          };
+        })
+        .filter((it) => dueInMonth(it.due_date))
+        // Drop scheduled renewal when this cycle is already paid (same day as due still shows a payment row).
+        .filter((it) => {
+          const due = it.due_date;
+          const paid = it._gym_last_paid_ymd;
+          return !paid || !due || paid < due;
+        })
+        .map(({ _gym_last_paid_ymd, ...rest }) => rest);
+
+      const appItems = appRows
+        .map((s) => {
+          const dueStr = subscriptionEndToYmdDenver(s.end_date);
+          const daysUntilDue = dueStr
+            ? Math.floor((new Date(`${dueStr}T12:00:00`) - new Date(`${todayStr}T12:00:00`)) / 86400000)
+            : null;
+          return {
+            kind: 'app',
+            subscription_id: s.id,
+            user_id: s.user_id,
+            name: s.name,
+            email: s.email,
+            due_date: dueStr,
+            days_until_due: daysUntilDue,
+            is_overdue: daysUntilDue != null ? daysUntilDue < 0 : false,
+            amount_due_cents: s.amount_due_cents,
+            has_payment_method: !!s.payment_method_id,
+            has_stripe_customer: !!s.stripe_customer_id,
+            tier: s.tier,
+            label: `App · ${tierAppLabel(s.tier)}`
+          };
+        })
+        .filter((it) => dueInMonth(it.due_date))
+        .filter((it) => !appRenewalPaidOnOrAfterDue(payments, it));
+
+      const scheduled = [...gymItems, ...appItems].sort((a, b) => {
+        const da = a.due_date || '';
+        const db_ = b.due_date || '';
+        if (da !== db_) return da.localeCompare(db_);
+        const ea = String(a.email || '');
+        const eb = String(b.email || '');
+        if (ea !== eb) return ea.localeCompare(eb);
+        return String(a.kind).localeCompare(String(b.kind));
+      });
+
+      const isSucceeded = (p) => String(p.status || '').toLowerCase() === 'succeeded';
+      const payments_succeeded = payments.filter(isSucceeded);
+      const payments_unsuccessful = payments.filter((p) => !isSucceeded(p));
+
+      const perUserMap = new Map();
+      for (const u of allUsers) {
+        perUserMap.set(u.id, {
+          user_id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          succeeded_count: 0,
+          succeeded_total_cents: 0,
+          unsuccessful_count: 0,
+          upcoming_renewals_count: 0
+        });
+      }
+      for (const p of payments_succeeded) {
+        const uid = p.user_id;
+        if (!perUserMap.has(uid)) continue;
+        const row = perUserMap.get(uid);
+        row.succeeded_count += 1;
+        row.succeeded_total_cents += Number(p.amount) || 0;
+      }
+      for (const p of payments_unsuccessful) {
+        const uid = p.user_id;
+        if (!perUserMap.has(uid)) continue;
+        perUserMap.get(uid).unsuccessful_count += 1;
+      }
+      for (const s of scheduled) {
+        const uid = s.user_id;
+        if (!perUserMap.has(uid)) continue;
+        perUserMap.get(uid).upcoming_renewals_count += 1;
+      }
+      const per_user_april = [...perUserMap.values()].sort((a, b) =>
+        String(a.email || '').localeCompare(String(b.email || ''))
+      );
+      const users_without_april_activity = per_user_april.filter(
+        (r) =>
+          r.succeeded_count === 0 && r.unsuccessful_count === 0 && r.upcoming_renewals_count === 0
+      );
+
+      const caveats = [
+        'Charged rows are loaded from the database view `transactions` (each row is one `payments` record joined to `users` for name, email, and role).',
+        'Successful vs unsuccessful split uses `payments.status` in Mountain Time for that calendar month (`succeeded` vs anything else, e.g. `requires_payment_method`, `failed`, `canceled`).',
+        'Gym: only the billing primary is listed per household (immediate-family dependents share the primary’s charge and are not separate rows).',
+        'Scheduled gym rows include paused memberships for this month; expired/cancelled-only rows may be omitted.',
+        'App: Tier One and free trials are not shown as scheduled paid renewals.',
+        'After a successful renewal, the gym/app due date in the database moves forward—you will see a payment row (by charge time) instead of a scheduled row on the old due date.',
+        'If a gym or app payment already landed on or after the renewal due date, the scheduled row for that due date is hidden so you are not shown the same renewal twice.',
+        'Paid rows use the real Stripe/processing timestamp in Mountain Time; a job that finishes just after midnight can appear on the next calendar day even if you think of it as the previous billing day.',
+        'Failed or pending-intent charges appear only if a `payments` row exists for that month; some flows only insert a row after success.',
+        'The Transactions tab highlights possible duplicate charges (same user, amount, and charge type on one Mountain calendar day, or the same PaymentIntent id twice). That is a heuristic—confirm in Stripe (e.g. refunds) before editing the database.'
+      ];
+
+      res.json({
+        month: ym,
+        month_label: monthLabel,
+        timezone: 'America/Denver',
+        payments,
+        payments_succeeded,
+        payments_unsuccessful,
+        scheduled,
+        per_user_april,
+        users_without_april_activity,
+        summary: {
+          user_count: per_user_april.length,
+          succeeded_payment_count: payments_succeeded.length,
+          unsuccessful_payment_count: payments_unsuccessful.length,
+          scheduled_renewal_count: scheduled.length,
+          users_with_no_april_activity: users_without_april_activity.length
+        },
+        caveats
+      });
+    } catch (error) {
+      console.error('Get current month transactions error:', error);
+      res.status(500).json({ error: 'Failed to load current month transactions' });
     }
   });
 
@@ -1647,6 +1979,133 @@ function createRouter(db) {
     }
   });
 
+  // Admin: recalc monthly_amount_cents for multi-member households (uses production DB when server runs in prod)
+  router.post('/admin/repair-household-monthly', authenticateToken, async (req, res) => {
+    try {
+      const user = await db.getUserById(req.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+      const raw =
+        (req.body && req.body.primary_email) ||
+        (req.query && req.query.primary_email) ||
+        '';
+      const primaryEmail = String(raw || '').trim() || null;
+      const result = await db.repairPrimaryHouseholdMonthlyAmounts(
+        primaryEmail ? { primaryEmail } : {}
+      );
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      console.error('Admin repair-household-monthly error:', err);
+      res.status(500).json({ ok: false, error: err.message || 'Repair failed' });
+    }
+  });
+
+  // Admin: link an existing user as immediate family on a primary's household (DB + display + billing split)
+  router.post('/admin/link-immediate-family', authenticateToken, async (req, res) => {
+    try {
+      const user = await db.getUserById(req.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+      const b = req.body || {};
+      const primary_email = String(b.primary_email || '').trim().toLowerCase();
+      const member_email = String(b.member_email || '').trim().toLowerCase();
+      const member_name = (b.member_name || '').trim() || null;
+      if (!primary_email) {
+        return res.status(400).json({ error: 'primary_email is required' });
+      }
+      const result = await db.linkImmediateFamilyMemberToPrimary({
+        primaryEmail: primary_email,
+        memberEmail: member_email,
+        memberName: member_name
+      });
+      res.json(result);
+    } catch (err) {
+      console.error('Admin link-immediate-family error:', err);
+      const msg = err.message || 'Link failed';
+      const clientErr =
+        msg.includes('not found') ||
+        msg.includes('not a household') ||
+        msg.includes('not a household primary') ||
+        msg.includes('no active primary') ||
+        msg.includes('Full family') ||
+        msg.includes('must differ') ||
+        msg.includes('already a primary');
+      res.status(clientErr ? 400 : 500).json({ ok: false, error: msg });
+    }
+  });
+
+  /**
+   * Admin: same as link-immediate-family plus optional household discount (total cents) and optional
+   * member list price (cents) for proportional split. Persists discount to admin_added_members when a row exists.
+   */
+  router.post('/admin/link-immediate-family-with-billing', authenticateToken, async (req, res) => {
+    try {
+      const user = await db.getUserById(req.userId);
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+      const b = req.body || {};
+      const primary_email = String(b.primary_email || '').trim().toLowerCase();
+      const member_email = String(b.member_email || '').trim().toLowerCase();
+      const member_name = (b.member_name || '').trim() || null;
+      if (!primary_email) {
+        return res.status(400).json({ error: 'primary_email is required' });
+      }
+
+      const dollarsInputToCents = (val) => {
+        if (val == null || val === '') return null;
+        if (typeof val === 'number' && Number.isFinite(val)) return Math.round(val * 100);
+        const s = String(val).trim().replace(/^\$/, '');
+        const n = parseFloat(s.replace(/,/g, ''));
+        if (!Number.isFinite(n)) return null;
+        return Math.round(n * 100);
+      };
+
+      let discountTotalCents = null;
+      if (b.discount_total_cents != null && b.discount_total_cents !== '') {
+        const c = parseInt(b.discount_total_cents, 10);
+        discountTotalCents = Number.isFinite(c) ? Math.max(0, c) : null;
+      } else if (b.discount_total_dollars != null && String(b.discount_total_dollars).trim() !== '') {
+        discountTotalCents = dollarsInputToCents(b.discount_total_dollars);
+      }
+
+      let memberListPriceCents = null;
+      if (b.member_list_price_cents != null && b.member_list_price_cents !== '') {
+        const c = parseInt(b.member_list_price_cents, 10);
+        memberListPriceCents = Number.isFinite(c) && c > 0 ? c : null;
+      } else if (b.member_list_price_dollars != null && String(b.member_list_price_dollars).trim() !== '') {
+        const c = dollarsInputToCents(b.member_list_price_dollars);
+        memberListPriceCents = c != null && c > 0 ? c : null;
+      }
+
+      const discountName = (b.discount_name || '').trim() || null;
+
+      const result = await db.linkImmediateFamilyMemberToPrimary({
+        primaryEmail: primary_email,
+        memberEmail: member_email,
+        memberName: member_name,
+        discountTotalCents,
+        discountName,
+        memberListPriceCents
+      });
+      res.json(result);
+    } catch (err) {
+      console.error('Admin link-immediate-family-with-billing error:', err);
+      const msg = err.message || 'Link failed';
+      const clientErr =
+        msg.includes('not found') ||
+        msg.includes('not a household') ||
+        msg.includes('not a household primary') ||
+        msg.includes('no active primary') ||
+        msg.includes('Full family') ||
+        msg.includes('must differ') ||
+        msg.includes('already a primary');
+      res.status(clientErr ? 400 : 500).json({ ok: false, error: msg });
+    }
+  });
+
   // Payment/subscription error logs (admin only)
   router.get('/admin/error-logs', authenticateToken, async (req, res) => {
     try {
@@ -1813,9 +2272,99 @@ function createRouter(db) {
     }
   });
 
+  // Admin: set display name by email (no user id required)
+  router.put('/admin/users/by-email/name', authenticateToken, async (req, res) => {
+    try {
+      const adminUser = await db.getUserById(req.userId);
+      if (!adminUser || adminUser.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+      const rawEmail = req.body && req.body.email;
+      const rawName = req.body && req.body.name;
+      const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+      const name = typeof rawName === 'string' ? rawName.trim().slice(0, 200) : '';
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'Valid email is required' });
+      }
+      if (!name) {
+        return res.status(400).json({ error: 'Name is required' });
+      }
+      const target = await db.getUserByEmail(email);
+      if (!target) {
+        return res.status(404).json({ error: 'User not found for that email' });
+      }
+      const updated = await db.updateUserName(target.id, name);
+      if (!updated) {
+        return res.status(500).json({ error: 'Failed to update name' });
+      }
+      res.json({
+        success: true,
+        name,
+        email: target.email,
+        userId: target.id
+      });
+    } catch (error) {
+      console.error('Admin by-email name error:', error);
+      res.status(500).json({ error: error.message || 'Failed to update name' });
+    }
+  });
+
   // Admin: generate 6-digit temporary login code (for members without Google-compatible email login).
-  router.post('/admin/users/temp-login-code', authenticateToken, [
-    body('email').isEmail().normalizeEmail()
+  // Prefer body: { login_code_request_id } from the pending-requests table (avoids email string mismatches).
+  // Or body: { email } for Gym Members tab / manual entry.
+  router.post('/admin/users/temp-login-code', authenticateToken, async (req, res) => {
+    try {
+      const adminUser = await db.getUserById(req.userId);
+      if (!adminUser || adminUser.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const lcrId = parseInt(req.body && req.body.login_code_request_id, 10);
+      let user = null;
+      if (Number.isFinite(lcrId) && lcrId > 0) {
+        const lcr = await db.getPendingLoginCodeRequestById(lcrId);
+        if (!lcr) {
+          return res.status(404).json({ error: 'Login code request not found or already handled' });
+        }
+        user = await db.getUserFullById(lcr.user_id);
+      } else {
+        const raw = req.body && req.body.email;
+        const email = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return res.status(400).json({ error: 'Valid email is required' });
+        }
+        user = await db.getUserByEmail(email);
+      }
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      if (user.password_hash && String(user.password_hash).startsWith('OAUTH_USER_')) {
+        return res.status(400).json({ error: 'This account uses Google sign-in. Ask them to use "Sign in with Google".' });
+      }
+
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24);
+      await db.createLoginCode(user.id, code, expiresAt.toISOString(), req.userId);
+      res.json({
+        message: 'Temporary login code generated. User should log in with email + this 6-digit code, then create a new password.',
+        code,
+        expiresAt: expiresAt.toISOString(),
+        userEmail: user.email || null
+      });
+    } catch (error) {
+      console.error('Admin temp-login-code error:', error);
+      res.status(500).json({ error: error.message || 'Failed to generate login code' });
+    }
+  });
+
+  /**
+   * Admin: create a password-reset token and return the full reset URL (production does not email forgot-password links).
+   * Member opens the link once; token expires in 1 hour.
+   */
+  router.post('/admin/users/password-reset-link', authenticateToken, [
+    emailBodyLooseMatchDb()
   ], async (req, res) => {
     try {
       const adminUser = await db.getUserById(req.userId);
@@ -1832,21 +2381,59 @@ function createRouter(db) {
         return res.status(404).json({ error: 'User not found' });
       }
       if (user.password_hash && String(user.password_hash).startsWith('OAUTH_USER_')) {
-        return res.status(400).json({ error: 'This account uses Google sign-in. Ask them to use "Sign in with Google".' });
+        return res.status(400).json({ error: 'This account uses Google sign-in. They should use "Sign in with Google".' });
       }
-
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const crypto = require('crypto');
+      const resetToken = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 24);
-      await db.createLoginCode(user.id, code, expiresAt.toISOString(), req.userId);
+      expiresAt.setHours(expiresAt.getHours() + 1);
+      await db.createPasswordResetToken(user.id, resetToken, expiresAt.toISOString());
+      const base = (process.env.FRONTEND_URL || 'https://app.stoic-fit.com').replace(/\/$/, '');
+      const resetUrl = `${base}/?token=${encodeURIComponent(resetToken)}`;
       res.json({
-        message: 'Temporary login code generated. User should log in with email + this 6-digit code, then create a new password.',
-        code,
+        message: 'Share this link with the member once. It expires in 1 hour.',
+        resetUrl,
         expiresAt: expiresAt.toISOString()
       });
     } catch (error) {
-      console.error('Admin temp-login-code error:', error);
-      res.status(500).json({ error: error.message || 'Failed to generate login code' });
+      console.error('Admin password-reset-link error:', error);
+      res.status(500).json({ error: error.message || 'Failed to create reset link' });
+    }
+  });
+
+  // Admin: pending member requests for 6-digit login codes
+  router.get('/admin/login-code-requests', authenticateToken, async (req, res) => {
+    try {
+      const adminUser = await db.getUserById(req.userId);
+      if (!adminUser || adminUser.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+      const requests = await db.listPendingLoginCodeRequests(200);
+      res.json({ requests });
+    } catch (error) {
+      console.error('Admin login-code-requests list error:', error);
+      res.status(500).json({ error: 'Failed to list requests' });
+    }
+  });
+
+  router.post('/admin/login-code-requests/:id/dismiss', authenticateToken, async (req, res) => {
+    try {
+      const adminUser = await db.getUserById(req.userId);
+      if (!adminUser || adminUser.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+      const id = parseInt(req.params.id, 10);
+      if (!Number.isFinite(id) || id < 1) {
+        return res.status(400).json({ error: 'Invalid request id' });
+      }
+      const ok = await db.dismissLoginCodeRequest(id, adminUser.id);
+      if (!ok) {
+        return res.status(404).json({ error: 'Request not found or already dismissed' });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Admin login-code-requests dismiss error:', error);
+      res.status(500).json({ error: 'Failed to dismiss request' });
     }
   });
 
@@ -2028,7 +2615,6 @@ function createRouter(db) {
 
         const { tier, isUpgrade } = req.body;
         const userId = req.userId;
-        const billingMode = process.env.BILLING_MODE || 'one_time';
 
         // Get user
         const user = await db.getUserById(userId);
@@ -2052,118 +2638,43 @@ function createRouter(db) {
           return res.status(500).json({ error: 'Failed to create payment' });
         }
 
-        // If using Stripe subscriptions, create subscription instead of payment intent
-        if (billingMode === 'stripe_subscriptions') {
-          const priceId = getPriceIdForTier(tier);
-            if (!priceId) {
-              return res.status(500).json({ error: `Price ID not configured for ${tier} tier` });
-          }
-
-          // Create Stripe subscription with incomplete payment
-          // This allows us to collect payment method via Payment Element
-          const subscription = await createSubscription(
-            stripeCustomerId,
-            priceId,
-            { 
-              userId: userId.toString(), 
-              tier,
-              isUpgrade: isUpgrade ? 'true' : 'false',
-              currentTier: currentSubscription?.tier || ''
-            },
-            'default_incomplete' // Create incomplete subscription that requires payment
-          );
-
-          // Get client secret from payment intent for Payment Element
-          const clientSecret = subscription.latest_invoice?.payment_intent?.client_secret;
-          
-          if (!clientSecret && subscription.status === 'incomplete') {
-            await db.createAppPaymentErrorLog({
-              userId,
-              userEmail: user.email,
-              stripeCustomerId,
-              stripeSubscriptionId: subscription.id,
-              tier,
-              eventType: 'app_subscription_missing_client_secret',
-              severity: 'error',
-              message: 'Subscription created in incomplete state but no client secret was returned.',
-              details: { stripeStatus: subscription.status }
-            });
-            // If no payment intent, subscription needs payment method
-            // This should not happen with default_incomplete, but handle it gracefully
-            return res.status(500).json({ 
-              error: 'Subscription created but payment intent not available. Please try again.' 
-            });
-          }
-
-          // IMPORTANT: Do not create/cancel DB subscription rows yet.
-          // We only activate/switch tiers after Stripe confirms success via webhook.
-
-          if (subscription.status === 'incomplete' || subscription.status === 'incomplete_expired') {
-            await db.createAppPaymentErrorLog({
-              userId,
-              userEmail: user.email,
-              stripeCustomerId,
-              stripeSubscriptionId: subscription.id,
-              stripePaymentIntentId: subscription.latest_invoice?.payment_intent?.id || null,
-              tier,
-              eventType: 'app_subscription_incomplete_created',
-              severity: 'warning',
-              message: 'Subscription requires payment confirmation before activation.',
-              details: { stripeStatus: subscription.status }
-            });
-          }
-
-          // Return subscription info with client secret for Payment Element
-          res.json({
-            subscriptionId: subscription.id,
-            clientSecret: clientSecret,
-            status: subscription.status,
-            tier: tier,
-            isUpgrade: isUpgrade || false,
-            requiresPayment: subscription.status === 'incomplete' || subscription.status === 'incomplete_expired' || !clientSecret
-          });
+        // App paid tiers: PaymentIntent + DB subscription only (no Stripe Subscriptions for app billing).
+        // Renewals use saved PM + nightly job / app logic, not subscription invoices.
+        let amount;
+        if (isUpgrade && currentSubscription) {
+          amount = calculateUpgradePrice(currentSubscription, tier);
         } else {
-          // One-time payment mode (existing behavior)
-          // Calculate amount - if upgrade, use pro-rated upgrade price, otherwise full price
-          let amount;
-          if (isUpgrade && currentSubscription) {
-            // Use pro-rated upgrade price calculation
-            amount = calculateUpgradePrice(currentSubscription, tier);
-          } else {
-            amount = TIER_PRICING[tier];
-          }
-          
-          // Create payment intent
-          const paymentIntent = await createPaymentIntent(
-            amount,
-            'usd',
-            stripeCustomerId,
-            { 
-              userId: userId.toString(), 
-              tier,
-              isUpgrade: isUpgrade ? 'true' : 'false',
-              currentTier: currentSubscription?.tier || ''
-            }
-          );
-
-          // Store payment intent in database
-          await db.createPayment(
-            userId,
-            paymentIntent.id,
-            amount,
-            'usd',
-            tier,
-            paymentIntent.status
-          );
-
-          res.json({
-            clientSecret: paymentIntent.client_secret,
-            paymentIntentId: paymentIntent.id,
-            amount: amount,
-            tier: tier,
-            isUpgrade: isUpgrade || false
-          });
+          amount = TIER_PRICING[tier];
         }
+
+        const paymentIntent = await createPaymentIntent(
+          amount,
+          'usd',
+          stripeCustomerId,
+          {
+            userId: userId.toString(),
+            tier,
+            isUpgrade: isUpgrade ? 'true' : 'false',
+            currentTier: currentSubscription?.tier || ''
+          }
+        );
+
+        await db.createPayment(
+          userId,
+          paymentIntent.id,
+          amount,
+          'usd',
+          tier,
+          paymentIntent.status
+        );
+
+        res.json({
+          clientSecret: paymentIntent.client_secret,
+          paymentIntentId: paymentIntent.id,
+          amount: amount,
+          tier: tier,
+          isUpgrade: isUpgrade || false
+        });
       } catch (error) {
         console.error('Payment creation error:', error);
         res.status(500).json({ error: 'Failed to create payment' });
@@ -2176,7 +2687,7 @@ function createRouter(db) {
     authenticateToken,
     [
       body('paymentIntentId').notEmpty(),
-      body('tier').isIn(['daily', 'weekly', 'monthly']),
+      body('tier').isIn(['daily', 'weekly', 'monthly', 'tier_two', 'tier_three', 'tier_four']),
       body('isUpgrade').optional().isBoolean()
     ],
     async (req, res) => {
@@ -4371,7 +4882,6 @@ function createRouter(db) {
       const adminUser = await db.getUserById(req.userId);
       if (!adminUser || adminUser.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
 
-      const rules = require('./membership-rules.json');
       const b = req.body;
       const primaryEmail = (b.primary_email || b.primary?.email || '').trim().toLowerCase();
       if (!primaryEmail) return res.status(400).json({ error: 'Primary email is required' });
@@ -4380,14 +4890,19 @@ function createRouter(db) {
       const membershipType = membershipTypeRaw ? membershipTypeToDb(membershipTypeRaw) || membershipTypeRaw : null;
       if (!membershipType) return res.status(400).json({ error: 'Membership type is required' });
 
-      const jsonType = membershipTypeRaw && membershipTypeRaw.toUpperCase().replace(/ /g, '_');
-      const typeKey = Object.keys(rules.membershipTypes || {}).find(k => membershipTypeToDb(k) === membershipType) || jsonType || 'STANDARD';
-      const basePriceCents = ((rules.membershipTypes || {})[typeKey]?.basePrice ?? 65) * 100;
-
       const d1 = Math.abs(parseInt(b.discount_1_cents, 10) || 0);
       const d2 = Math.abs(parseInt(b.discount_2_cents, 10) || 0);
       const d3 = Math.abs(parseInt(b.discount_3_cents, 10) || 0);
-      const monthlyAmountCents = Math.max(0, basePriceCents - d1 - d2 - d3);
+      const householdList = Array.isArray(b.household_members) ? b.household_members : [];
+      const monthlyAmountCents = computeHouseholdMonthlyAmountCents({
+        primaryEmail,
+        primaryMembershipTypeDb: membershipType,
+        householdMembers: householdList,
+        discount1Cents: d1,
+        discount2Cents: d2,
+        discount3Cents: d3,
+        rules: membershipRules
+      });
 
       const membershipStartDate = b.membership_start_date || b.start_date;
       if (!membershipStartDate) return res.status(400).json({ error: 'Membership start date is required' });
@@ -4416,7 +4931,6 @@ function createRouter(db) {
 
       // Ensure every household email has a users row (immediate family uses billed_with_primary: true
       // from the form; they were previously skipped and never appeared in /admin/users or migration confirm).
-      const householdList = Array.isArray(b.household_members) ? b.household_members : [];
       const crypto = require('crypto');
       for (const h of householdList) {
         const email = (h.email || '').trim().toLowerCase();
@@ -4457,7 +4971,9 @@ function createRouter(db) {
       res.status(201).json({
         success: true,
         migration_id: migrationId,
-        message: 'Member added. They can log in with this email (Google or register) to confirm and add payment.',
+        message:
+          'Member added. They can log in with this email (Google or register) to confirm profile, acknowledge the 12-month contract, and add a payment method. ' +
+          'The date you entered is their first Stoic pay date and starts the 12-month term (honoring the legacy next due).',
         group_id: groupId || undefined,
         group_access_code: (b.create_new_group && groupId) ? (await db.getDiscountGroupByGroupId(groupId))?.group_access_code : undefined
       });
@@ -4912,9 +5428,25 @@ function createRouter(db) {
         return res.status(400).json({ error: 'No Stripe customer ID on membership' });
       }
       const GYM_PRICING = { standard: 6500, immediate_family_member: 5000, expecting_or_recovering_mother: 3000, entire_family: 18500 };
-      const amountCents = (membership.monthly_amount_cents != null && membership.monthly_amount_cents > 0)
+      let amountCents = (membership.monthly_amount_cents != null && membership.monthly_amount_cents > 0)
         ? membership.monthly_amount_cents
         : (GYM_PRICING[membership.membership_type] || 6500);
+      if (membership.family_group_id != null && String(membership.family_group_id).trim() !== '') {
+        const summed = await db.getSumMonthlyAmountCentsForFamilyGroup(membership.family_group_id);
+        if (summed > 0) amountCents = summed;
+      }
+
+      const currentEndStr = membership.contract_end_date ? String(membership.contract_end_date).trim().split('T')[0].split(' ')[0] : null;
+      const anchorStr = gymBillingAnchorYmdFromMembershipRow(membership);
+      const newEndStr =
+        currentEndStr && /^\d{4}-\d{2}-\d{2}$/.test(currentEndStr) && anchorStr
+          ? nextGymContractEndYmdDenver(currentEndStr, anchorStr)
+          : null;
+      if (!newEndStr) {
+        return res.status(400).json({
+          error: 'Cannot charge: contract_end_date or billing anchor missing/invalid for this membership.'
+        });
+      }
 
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountCents,
@@ -4925,6 +5457,7 @@ function createRouter(db) {
         confirm: true,
         metadata: {
           membership_id: membership.id.toString(),
+          userId: membership.user_id.toString(),
           user_id: membership.user_id.toString(),
           membership_type: membership.membership_type || 'standard',
           type: 'gym_membership_renewal',
@@ -4940,25 +5473,28 @@ function createRouter(db) {
         });
       }
 
-      const currentEndStr = membership.contract_end_date ? String(membership.contract_end_date).trim().split('T')[0] : null;
-      const currentEndDate = currentEndStr && /^\d{4}-\d{2}-\d{2}$/.test(currentEndStr) ? new Date(currentEndStr + 'T00:00:00Z') : new Date();
-      const newEndDate = new Date(currentEndDate);
-      newEndDate.setUTCMonth(newEndDate.getUTCMonth() + 1);
-      const newEndStr = newEndDate.toISOString().split('T')[0];
+      let startPersist = null;
+      try {
+        const piFull = await stripe.paymentIntents.retrieve(paymentIntent.id, { expand: ['latest_charge'] });
+        const { contractStartYmd } = await getContractStartEndYmdFromSucceededPaymentIntent(stripe, piFull);
+        startPersist = gymContractStartYmdToPersistOnPayment(membership, contractStartYmd);
+      } catch (_) {
+        startPersist = gymContractStartYmdToPersistOnPayment(membership, null);
+      }
 
       if (membership.family_group_id && membership.is_primary_member) {
         await db.query(
           db.isPostgres
-            ? 'UPDATE gym_memberships SET contract_end_date = $1, status = \'active\', updated_at = CURRENT_TIMESTAMP WHERE family_group_id = $2'
-            : 'UPDATE gym_memberships SET contract_end_date = ?, status = \'active\', updated_at = datetime(\'now\') WHERE family_group_id = ?',
-          [newEndStr, membership.family_group_id]
+            ? 'UPDATE gym_memberships SET contract_end_date = $1, contract_start_date = COALESCE($2::date, contract_start_date), status = \'active\', updated_at = CURRENT_TIMESTAMP WHERE family_group_id = $3'
+            : 'UPDATE gym_memberships SET contract_end_date = ?, contract_start_date = COALESCE(?, contract_start_date), status = \'active\', updated_at = datetime(\'now\') WHERE family_group_id = ?',
+          [newEndStr, startPersist, membership.family_group_id]
         );
       } else {
         await db.query(
           db.isPostgres
-            ? 'UPDATE gym_memberships SET contract_end_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2'
-            : 'UPDATE gym_memberships SET contract_end_date = ?, updated_at = datetime(\'now\') WHERE id = ?',
-          [newEndStr, membership.id]
+            ? 'UPDATE gym_memberships SET contract_end_date = $1, contract_start_date = COALESCE($2::date, contract_start_date), updated_at = CURRENT_TIMESTAMP WHERE id = $3'
+            : 'UPDATE gym_memberships SET contract_end_date = ?, contract_start_date = COALESCE(?, contract_start_date), updated_at = datetime(\'now\') WHERE id = ?',
+          [newEndStr, startPersist, membership.id]
         );
       }
       await db.resetGymMembershipPaymentFailures(membership.id);
@@ -4979,6 +5515,201 @@ function createRouter(db) {
       console.error('Admin charge-now error:', err);
       const message = err.type === 'StripeCardError' ? (err.message || 'Card declined') : (err.message || 'Charge failed');
       res.status(500).json({ error: message });
+    }
+  });
+
+  /**
+   * Admin: copy the member's app-subscription card onto their gym_memberships row (same Stripe customer + PM as app).
+   * Does not move a PaymentMethod between Stripe customers (uses the PM's customer as source of truth).
+   */
+  router.post('/admin/gym-memberships/sync-payment-from-app', authenticateToken, async (req, res) => {
+    try {
+      const adminUser = await db.getUserById(req.userId);
+      if (!adminUser || adminUser.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+      const rawEmail = req.body && req.body.email;
+      const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'Valid email is required' });
+      }
+      const user = await db.getUserByEmail(email);
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      const appSub = await db.getUserActiveSubscription(user.id);
+      if (!appSub) {
+        return res.status(400).json({ error: 'No active app subscription found for this user' });
+      }
+
+      let pmId = appSub.payment_method_id && String(appSub.payment_method_id).trim();
+      let appCustomerId =
+        (appSub.stripe_customer_id && String(appSub.stripe_customer_id).trim()) ||
+        (user.stripe_customer_id && String(user.stripe_customer_id).trim()) ||
+        null;
+
+      if (!pmId && appSub.stripe_subscription_id) {
+        try {
+          const ss = await stripe.subscriptions.retrieve(appSub.stripe_subscription_id, {
+            expand: ['default_payment_method', 'latest_invoice.payment_intent']
+          });
+          const dpm = ss.default_payment_method;
+          pmId = typeof dpm === 'string' ? dpm : dpm && dpm.id;
+          if (!pmId && ss.customer) {
+            const cid = typeof ss.customer === 'string' ? ss.customer : ss.customer.id;
+            appCustomerId = appCustomerId || cid;
+            const cust = await stripe.customers.retrieve(cid);
+            const invpm = cust.invoice_settings && cust.invoice_settings.default_payment_method;
+            pmId = typeof invpm === 'string' ? invpm : invpm && invpm.id;
+          }
+          if (!pmId && ss.latest_invoice) {
+            const inv =
+              typeof ss.latest_invoice === 'string'
+                ? await stripe.invoices.retrieve(ss.latest_invoice, { expand: ['payment_intent'] })
+                : ss.latest_invoice;
+            const pi = inv && inv.payment_intent;
+            if (pi) {
+              const pio = typeof pi === 'string' ? await stripe.paymentIntents.retrieve(pi) : pi;
+              const p = pio.payment_method;
+              pmId = typeof p === 'string' ? p : p && p.id;
+            }
+          }
+        } catch (e) {
+          console.warn('sync-payment-from-app: subscription retrieve', e.message);
+        }
+      }
+      if (!pmId && appCustomerId) {
+        try {
+          const cust = await stripe.customers.retrieve(appCustomerId);
+          const invpm = cust.invoice_settings && cust.invoice_settings.default_payment_method;
+          pmId = typeof invpm === 'string' ? invpm : invpm && invpm.id;
+          if (!pmId) {
+            const list = await stripe.paymentMethods.list({ customer: appCustomerId, type: 'card', limit: 5 });
+            if (list.data && list.data[0]) pmId = list.data[0].id;
+          }
+        } catch (e) {
+          console.warn('sync-payment-from-app: customer retrieve', e.message);
+        }
+      }
+
+      if (!pmId) {
+        return res.status(400).json({
+          error: 'Could not resolve a payment method from the app subscription (DB + Stripe).'
+        });
+      }
+
+      let pm;
+      try {
+        pm = await stripe.paymentMethods.retrieve(pmId);
+      } catch (e) {
+        return res.status(400).json({ error: 'Payment method not found in Stripe: ' + (e.message || '') });
+      }
+      const canonicalCustomer = (pm.customer && String(pm.customer)) || appCustomerId || null;
+      if (!canonicalCustomer) {
+        return res.status(400).json({
+          error: 'Could not determine Stripe customer for the app payment method.'
+        });
+      }
+
+      let paymentMethodExpiresAt = null;
+      if (pm.card && pm.card.exp_year && pm.card.exp_month) {
+        paymentMethodExpiresAt = new Date(
+          pm.card.exp_year,
+          pm.card.exp_month,
+          0,
+          23,
+          59,
+          59
+        ).toISOString();
+      }
+
+      const gym = await db.queryOne(
+        db.isPostgres
+          ? 'SELECT * FROM gym_memberships WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1'
+          : 'SELECT * FROM gym_memberships WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+        [user.id]
+      );
+      if (!gym) return res.status(404).json({ error: 'No gym membership row for this user' });
+
+      await db.query(
+        db.isPostgres
+          ? `UPDATE gym_memberships
+             SET stripe_customer_id = $1, payment_method_id = $2, payment_method_expires_at = $3,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $4`
+          : `UPDATE gym_memberships
+             SET stripe_customer_id = ?, payment_method_id = ?, payment_method_expires_at = ?,
+                 updated_at = datetime('now')
+             WHERE id = ?`,
+        [canonicalCustomer, pmId, paymentMethodExpiresAt, gym.id]
+      );
+
+      const warnings = [];
+      try {
+        await stripe.customers.update(canonicalCustomer, {
+          invoice_settings: { default_payment_method: pmId }
+        });
+      } catch (e) {
+        warnings.push('Could not set default payment method on Stripe customer: ' + e.message);
+      }
+
+      if (gym.stripe_subscription_id) {
+        try {
+          const gsub = await stripe.subscriptions.retrieve(gym.stripe_subscription_id);
+          const gCust = typeof gsub.customer === 'string' ? gsub.customer : gsub.customer && gsub.customer.id;
+          if (gCust === canonicalCustomer) {
+            await stripe.subscriptions.update(gym.stripe_subscription_id, {
+              default_payment_method: pmId
+            });
+          } else {
+            warnings.push(
+              `Gym Stripe subscription is on a different customer than the app card. Database was updated for charges using this customer; recurring gym billing may still use the old subscription customer until fixed in Stripe.`
+            );
+          }
+        } catch (e) {
+          warnings.push('Could not inspect/update gym subscription default payment method: ' + e.message);
+        }
+      }
+
+      return res.json({
+        success: true,
+        user_id: user.id,
+        gym_membership_id: gym.id,
+        stripe_customer_id: canonicalCustomer,
+        payment_method_id: pmId,
+        warnings: warnings.length ? warnings : undefined
+      });
+    } catch (err) {
+      console.error('Admin sync-payment-from-app error:', err);
+      res.status(500).json({ error: err.message || 'Sync failed' });
+    }
+  });
+
+  /**
+   * Admin: set household gym contract_start_date / contract_end_date / start_date (primary + same family_group_id).
+   * Body: { primary_email, contract_start_date: "YYYY-MM-DD", contract_end_date: "YYYY-MM-DD" }
+   */
+  router.post('/admin/gym-memberships/set-household-anchor-dates', authenticateToken, async (req, res) => {
+    try {
+      const adminUser = await db.getUserById(req.userId);
+      if (!adminUser || adminUser.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+      const b = req.body || {};
+      const primaryEmail = typeof b.primary_email === 'string' ? b.primary_email.trim().toLowerCase() : '';
+      const contractStart = typeof b.contract_start_date === 'string' ? b.contract_start_date.trim() : '';
+      const contractEnd = typeof b.contract_end_date === 'string' ? b.contract_end_date.trim() : '';
+      if (!primaryEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(primaryEmail)) {
+        return res.status(400).json({ error: 'Valid primary_email is required' });
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(contractStart) || !/^\d{4}-\d{2}-\d{2}$/.test(contractEnd)) {
+        return res.status(400).json({ error: 'contract_start_date and contract_end_date must be YYYY-MM-DD' });
+      }
+      const result = await db.setHouseholdGymAnchorDates(primaryEmail, contractStart, contractEnd);
+      return res.json({ success: true, ...result });
+    } catch (err) {
+      const msg = err && err.message ? err.message : 'Update failed';
+      const status = /not found|No active primary/i.test(msg) ? 404 : 400;
+      console.error('Admin set-household-anchor-dates error:', err);
+      return res.status(status).json({ error: msg });
     }
   });
 
@@ -5251,6 +5982,17 @@ function createRouter(db) {
     try {
       const user = await db.getUserById(req.userId);
       if (!user || !user.email) return res.status(200).json({ pending: null });
+      // If the user already has a real gym membership row, do not surface stale pending
+      // admin-added records (they can contain old contract/discount values and block UI).
+      const existingMembership = await db.queryOne(
+        db.isPostgres
+          ? 'SELECT id FROM gym_memberships WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1'
+          : 'SELECT id FROM gym_memberships WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+        [req.userId]
+      );
+      if (existingMembership && existingMembership.id != null) {
+        return res.status(200).json({ pending: null });
+      }
       const pending = await db.getPendingMigrationByEmail(user.email);
       if (!pending) return res.status(200).json({ pending: null });
       res.json({ pending });
@@ -5472,11 +6214,23 @@ function createRouter(db) {
         console.error('Confirm migration: unparseable start date', { email: user.email, startDate });
         return res.status(400).json({ error: 'Membership start date is invalid. Please contact support.' });
       }
-      const formatYmd = (d) => d.toISOString().split('T')[0];
-      // Migration import: admin-supplied scheduled start (not the same as self-serve signup flow).
-      // Self-serve gym_memberships rows use NULL contract dates until first successful charge (see /gym-memberships/create).
-      const contractEndDate = formatYmd(start);
-      const householdId = !pending.household_members || pending.household_members.length === 0 ? null : (() => {
+      // Admin migration (legacy next due → Stoic): membership_start_date from the old system becomes the first
+      // Stoic pay date. That same calendar day is contract_start_date — it starts the one-year commitment
+      // (contract_months = 12; no separate commitment-end column). contract_end_date is initially the same YMD
+      // so billing treats that day as the first charge due; after each successful payment, Denver calendar-month
+      // logic advances contract_end_date for the next bill. (Self-serve signup uses NULL dates until first charge.)
+      const anchorDenver = parseGymAnchorToDenverStart(startDate);
+      const contractAnchorYmd = anchorDenver && anchorDenver.isValid ? anchorDenver.toFormat('yyyy-MM-dd') : startDate;
+      let parsedHouseholdMembers = pending.household_members || [];
+      if (typeof parsedHouseholdMembers === 'string') {
+        try {
+          parsedHouseholdMembers = JSON.parse(parsedHouseholdMembers || '[]');
+        } catch (_) {
+          parsedHouseholdMembers = [];
+        }
+      }
+      if (!Array.isArray(parsedHouseholdMembers)) parsedHouseholdMembers = [];
+      const householdId = parsedHouseholdMembers.length === 0 ? null : (() => {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let id = 'HH-';
         for (let i = 0; i < 6; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -5494,7 +6248,23 @@ function createRouter(db) {
           [stripeCustomerId, userId]
         );
       }
-      const monthlyAmountCents = pending.monthly_amount_cents != null ? Math.max(0, parseInt(pending.monthly_amount_cents, 10)) : null;
+      let monthlyAmountCents =
+        pending.monthly_amount_cents != null ? Math.max(0, parseInt(pending.monthly_amount_cents, 10)) : null;
+      let householdAllocation = null;
+      // Per-line nets: discount split by list-price share; primary row stores primary's net, dependents theirs.
+      // Total Stripe charge = SUM(monthly_amount_cents) for the family_group_id (see nightly job + admin charge).
+      if (!isImmediateFamilyDependent) {
+        householdAllocation = allocateHouseholdMonthlyLines({
+          primaryEmail: user.email,
+          primaryMembershipTypeDb: pending.membership_type,
+          householdMembers: parsedHouseholdMembers,
+          discount1Cents: pending.discount_1_cents,
+          discount2Cents: pending.discount_2_cents,
+          discount3Cents: pending.discount_3_cents,
+          rules: membershipRules
+        });
+        monthlyAmountCents = householdAllocation.lines[0].netCents;
+      }
       const discountNames = [
         (pending.discount_1_name || '').trim(),
         (pending.discount_2_name || '').trim(),
@@ -5516,16 +6286,16 @@ function createRouter(db) {
         await db.query(
           `INSERT INTO gym_memberships (user_id, membership_type, household_id, family_group_id, is_primary_member, discount_group_id, status, contract_start_date, contract_end_date, contract_months, stripe_customer_id, monthly_amount_cents, discount_name, created_at)
            VALUES ($1, $2, $3, $4, true, $5, 'active', $6, $7, 12, $8, $9, $10, CURRENT_TIMESTAMP)`,
-          [userId, pending.membership_type, householdId, familyGroupId, pending.discount_group_id || null, formatYmd(start), contractEndDate, stripeCustomerId, monthlyAmountCents, discountName]
+          [userId, pending.membership_type, householdId, familyGroupId, pending.discount_group_id || null, contractAnchorYmd, contractAnchorYmd, stripeCustomerId, monthlyAmountCents, discountName]
         );
       } else {
         await db.query(
           `INSERT INTO gym_memberships (user_id, membership_type, household_id, family_group_id, is_primary_member, discount_group_id, status, contract_start_date, contract_end_date, contract_months, stripe_customer_id, monthly_amount_cents, discount_name, created_at)
            VALUES (?, ?, ?, ?, 1, ?, 'active', ?, ?, 12, ?, ?, ?, datetime('now'))`,
-          [userId, pending.membership_type, householdId, familyGroupId, pending.discount_group_id || null, formatYmd(start), contractEndDate, stripeCustomerId, monthlyAmountCents, discountName]
+          [userId, pending.membership_type, householdId, familyGroupId, pending.discount_group_id || null, contractAnchorYmd, contractAnchorYmd, stripeCustomerId, monthlyAmountCents, discountName]
         );
       }
-      const members = pending.household_members || [];
+      const members = parsedHouseholdMembers;
       const cryptoConfirm = require('crypto');
       for (const m of members) {
         const email = (m.email || '').trim().toLowerCase();
@@ -5544,24 +6314,26 @@ function createRouter(db) {
         const fgId = familyGroupId != null ? familyGroupId : null;
         const hhId = null;
         const memType = m.membership_type || 'immediate_family_member';
-        const baseCents = memType === 'immediate_family_member' ? 5000 : (memType === 'expecting_or_recovering_mother' ? 3000 : (memType === 'standard' ? 6500 : 18500));
-        const md1 = Math.abs(parseInt(m.discount_1_cents, 10) || 0);
-        const md2 = Math.abs(parseInt(m.discount_2_cents, 10) || 0);
-        const md3 = Math.abs(parseInt(m.discount_3_cents, 10) || 0);
-        const memberMonthlyCents = Math.max(0, baseCents - md1 - md2 - md3);
+        const emLower = (m.email || '').trim().toLowerCase();
+        const lineHit =
+          householdAllocation &&
+          householdAllocation.lines.find((l) => l.role === 'dependent' && l.email === emLower);
+        const memberMonthlyCents = lineHit ? lineHit.netCents : null;
         const memberDiscountNames = [(m.discount_1_name || '').trim(), (m.discount_2_name || '').trim(), (m.discount_3_name || '').trim()].filter(Boolean);
-        const memberDiscountName = memberDiscountNames.length > 0 ? memberDiscountNames.join(' & ') : null;
+        const memberDiscountName = lineHit
+          ? (discountName || (memberDiscountNames.length ? memberDiscountNames.join(' & ') : null))
+          : null;
         if (db.isPostgres) {
           await db.query(
             `INSERT INTO gym_memberships (user_id, membership_type, household_id, family_group_id, is_primary_member, discount_group_id, status, contract_start_date, contract_end_date, contract_months, monthly_amount_cents, discount_name, created_at)
              VALUES ($1, $2, $3, $4, false, $5, 'active', $6, $7, 12, $8, $9, CURRENT_TIMESTAMP)`,
-            [memberUser.id, memType, hhId, fgId, pending.discount_group_id || null, formatYmd(start), contractEndDate, memberMonthlyCents || null, memberDiscountName]
+            [memberUser.id, memType, hhId, fgId, pending.discount_group_id || null, contractAnchorYmd, contractAnchorYmd, memberMonthlyCents || null, memberDiscountName]
           );
         } else {
           await db.query(
             `INSERT INTO gym_memberships (user_id, membership_type, household_id, family_group_id, is_primary_member, discount_group_id, status, contract_start_date, contract_end_date, contract_months, monthly_amount_cents, discount_name, created_at)
              VALUES (?, ?, ?, ?, 0, ?, 'active', ?, ?, 12, ?, ?, datetime('now'))`,
-            [memberUser.id, memType, hhId, fgId, pending.discount_group_id || null, formatYmd(start), contractEndDate, memberMonthlyCents || null, memberDiscountName]
+            [memberUser.id, memType, hhId, fgId, pending.discount_group_id || null, contractAnchorYmd, contractAnchorYmd, memberMonthlyCents || null, memberDiscountName]
           );
         }
       }
@@ -5573,7 +6345,15 @@ function createRouter(db) {
           membership_start_date: startDate
         });
       } else {
-        res.json({ success: true, message: 'Membership confirmed. Add a payment method below. You will not be charged until ' + startDate + '.', membership_start_date: startDate });
+        res.json({
+          success: true,
+          message:
+            'Membership confirmed. Your twelve-month agreement is on file; it runs from your first Stoic pay date. ' +
+            'Add a payment method below. First pay date is ' +
+            startDate +
+            ' — you will not be charged before then.',
+          membership_start_date: startDate
+        });
       }
     } catch (error) {
       console.error('Confirm migration error:', error);
@@ -6029,6 +6809,7 @@ function createRouter(db) {
           discountNameForResponse = names.length > 0 ? names.join(' & ') : null;
         }
       }
+      discountNameForResponse = normalizeGymDiscountDisplayName(discountNameForResponse) ?? discountNameForResponse;
       
       // Format response - ensure dates are in YYYY-MM-DD format
       // Handles TIMESTAMP columns which may include time components
@@ -6244,7 +7025,7 @@ function createRouter(db) {
             entire_family: 185,
             free_trial: 0
           })[r.membership_type] ?? 0,
-          discount_name: r.discount_name || null
+          discount_name: normalizeGymDiscountDisplayName(r.discount_name || null)
         }));
 
         response.primaryMember = mappedMembers.find((m) => m.is_primary_member) || null;
@@ -6344,18 +7125,21 @@ function createRouter(db) {
           try {
             const pendingRes = db.isPostgres
               ? await db.query(
-                  `SELECT primary_email, primary_first_name, primary_last_name FROM admin_added_members
+                  `SELECT primary_email, primary_first_name, primary_last_name, household_members FROM admin_added_members
                    WHERE discount_group_id = $1 AND status = 'pending_confirmation'`,
                   [dgId]
                 )
               : await db.query(
-                  `SELECT primary_email, primary_first_name, primary_last_name FROM admin_added_members
+                  `SELECT primary_email, primary_first_name, primary_last_name, household_members FROM admin_added_members
                    WHERE discount_group_id = ? AND status = 'pending_confirmation'`,
                   [dgId]
                 );
             const pendingList = (pendingRes && pendingRes.rows) ? pendingRes.rows : [];
             const seenEmails = new Set(
               response.groupMembers.map((m) => String(m.email || '').trim().toLowerCase()).filter(Boolean)
+            );
+            const seenNames = new Set(
+              response.groupMembers.map((m) => String(m.name || '').trim().toLowerCase()).filter(Boolean)
             );
             for (const p of pendingList) {
               const em = String(p.primary_email || '').trim().toLowerCase();
@@ -6365,6 +7149,7 @@ function createRouter(db) {
                 [p.primary_first_name, p.primary_last_name].filter(Boolean).join(' ').trim() ||
                 p.primary_email ||
                 'Member';
+              if (name) seenNames.add(String(name).trim().toLowerCase());
               response.groupMembers.push({
                 id: null,
                 email: p.primary_email,
@@ -6372,6 +7157,36 @@ function createRouter(db) {
                 payment_status: 'pending_signup',
                 is_current_user: false
               });
+
+              // Include pending household members billed with primary so they appear in My Group
+              // before the primary account completes confirmation.
+              let pendingHousehold = p.household_members;
+              if (typeof pendingHousehold === 'string') {
+                try { pendingHousehold = JSON.parse(pendingHousehold || '[]'); } catch (_) { pendingHousehold = []; }
+              }
+              if (!Array.isArray(pendingHousehold)) continue;
+              for (const hm of pendingHousehold) {
+                const billedWithPrimary = hm?.billed_with_primary !== false && hm?.billed_with_primary !== 'false';
+                if (!billedWithPrimary) continue;
+                const hem = String(hm?.email || '').trim().toLowerCase();
+                const displayName = String(
+                  [hm?.first_name, hm?.last_name].filter(Boolean).join(' ').trim() ||
+                  hm?.name ||
+                  hm?.email ||
+                  ''
+                ).trim();
+                const nameKey = displayName.toLowerCase();
+                if ((hem && seenEmails.has(hem)) || (!hem && nameKey && seenNames.has(nameKey))) continue;
+                if (hem) seenEmails.add(hem);
+                if (nameKey) seenNames.add(nameKey);
+                response.groupMembers.push({
+                  id: null,
+                  email: hm?.email || '',
+                  name: displayName || 'Member',
+                  payment_status: 'pending_signup',
+                  is_current_user: false
+                });
+              }
             }
             response.groupMembers.sort((a, b) =>
               String(a.name || a.email || '').localeCompare(String(b.name || b.email || ''), undefined, { sensitivity: 'base' })
@@ -6379,6 +7194,105 @@ function createRouter(db) {
           } catch (pendErr) {
             console.warn('Group members: pending admin_added merge:', pendErr.message);
           }
+          // Confirmed household members billed with primary should still show in My Group even if they
+          // have not created their own login yet (no users/gym_memberships row).
+          try {
+            const confirmedRes = db.isPostgres
+              ? await db.query(
+                  `SELECT primary_email, household_members
+                   FROM admin_added_members
+                   WHERE discount_group_id = $1 AND status = 'confirmed'`,
+                  [dgId]
+                )
+              : await db.query(
+                  `SELECT primary_email, household_members
+                   FROM admin_added_members
+                   WHERE discount_group_id = ? AND status = 'confirmed'`,
+                  [dgId]
+                );
+            const confirmedRows = (confirmedRes && confirmedRes.rows) ? confirmedRes.rows : [];
+            const seenEmails2 = new Set(
+              response.groupMembers.map((m) => String(m.email || '').trim().toLowerCase()).filter(Boolean)
+            );
+            const seenNames2 = new Set(
+              response.groupMembers.map((m) => String(m.name || '').trim().toLowerCase()).filter(Boolean)
+            );
+            for (const cr of confirmedRows) {
+              let householdMembers = cr.household_members;
+              if (typeof householdMembers === 'string') {
+                try { householdMembers = JSON.parse(householdMembers || '[]'); } catch (_) { householdMembers = []; }
+              }
+              if (!Array.isArray(householdMembers)) continue;
+              for (const hm of householdMembers) {
+                const billedWithPrimary = hm?.billed_with_primary !== false && hm?.billed_with_primary !== 'false';
+                if (!billedWithPrimary) continue;
+                const em = String(hm?.email || '').trim().toLowerCase();
+                const displayName = String(
+                  [hm?.first_name, hm?.last_name].filter(Boolean).join(' ').trim() ||
+                  hm?.name ||
+                  hm?.email ||
+                  ''
+                ).trim();
+                const nameKey = displayName.toLowerCase();
+                if ((em && seenEmails2.has(em)) || (!em && nameKey && seenNames2.has(nameKey))) continue;
+                if (em) seenEmails2.add(em);
+                if (nameKey) seenNames2.add(nameKey);
+                response.groupMembers.push({
+                  id: null,
+                  email: hm?.email || '',
+                  name: displayName || 'Member',
+                  payment_status: 'current',
+                  is_current_user: false
+                });
+              }
+            }
+            response.groupMembers.sort((a, b) =>
+              String(a.name || a.email || '').localeCompare(String(b.name || b.email || ''), undefined, { sensitivity: 'base' })
+            );
+          } catch (famErr) {
+            console.warn('Group members: confirmed household merge:', famErr.message);
+          }
+          // UI-safe dedupe: prevent duplicate "No email added" rows for same person
+          // when legacy placeholders/admin-added entries overlap.
+          const isPlaceholderGroupEmail = (email) => {
+            const e = String(email || '').trim().toLowerCase();
+            return !e || e.endsWith('@no-email.stoic-fit.local') || e.endsWith('@stoic-fit.local');
+          };
+          const dedupeGroupMembersForUi = (members) => {
+            const list = members || [];
+            // Same person can appear once from admin_added (placeholder email) and once from users/gym_memberships
+            // (real email). Keys email:x and name:y do not collide — drop placeholder rows when a real-email row exists for that name.
+            const namesWithRealEmail = new Set();
+            for (const m of list) {
+              const em = String(m?.email || '').trim().toLowerCase();
+              if (!isPlaceholderGroupEmail(em)) {
+                const nm = String(m?.name || '').trim().toLowerCase();
+                if (nm) namesWithRealEmail.add(nm);
+              }
+            }
+            const seen = new Set();
+            const out = [];
+            let placeholderSeq = 0;
+            for (const m of list) {
+              const em = String(m?.email || '').trim().toLowerCase();
+              const nm = String(m?.name || '').trim().toLowerCase();
+              if (isPlaceholderGroupEmail(em)) {
+                if (nm && namesWithRealEmail.has(nm)) continue;
+                const key = nm ? `name:${nm}` : `ph:${placeholderSeq++}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                out.push(m);
+                continue;
+              }
+              const key = `email:${em}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              out.push(m);
+            }
+            return out;
+          };
+          response.groupMembers = dedupeGroupMembersForUi(response.groupMembers);
+
           response.groupInfo = {
             groupId: group.group_id,
             groupName: group.group_name || null,
@@ -6395,15 +7309,15 @@ function createRouter(db) {
               };
             }
           } catch (e) { /* use defaults */ }
-          // Source of truth for group-size qualification is the same member list used by
-          // Console -> Groups (response.groupMembers), so 5+ checks stay consistent.
+          // Qualification rule: discount applies only when at least requiredCount members
+          // are currently active/grace_period (not just listed in the group roster).
           const sourceOfTruthMemberCount = response.groupMembers.length;
           const activeCount = allGymRows.filter((r) => {
             const s = String(r.status || '').toLowerCase();
             return s === 'active' || s === 'grace_period';
           }).length;
           response.groupDiscount = {
-            hasDiscount: sourceOfTruthMemberCount >= groupRules.minMembersForDiscount,
+            hasDiscount: activeCount >= groupRules.minMembersForDiscount,
             discountPercent: groupRules.discountPercent,
             requiredCount: groupRules.minMembersForDiscount,
             totalMembers: sourceOfTruthMemberCount,
@@ -6416,7 +7330,7 @@ function createRouter(db) {
       if (stripeSubscription) {
         let periodStart = stripeSubscription.current_period_start;
         let periodEnd = stripeSubscription.current_period_end;
-        // When latest invoice is paid and its period has ended, use next 30-day period (user just paid)
+        // When latest invoice is paid and its period has ended, show next calendar-month period (America/Denver)
         if (stripeSubscription.latest_invoice && stripeSubscription.status === 'active') {
           const inv = typeof stripeSubscription.latest_invoice === 'string'
             ? await stripe.invoices.retrieve(stripeSubscription.latest_invoice)
@@ -6426,11 +7340,22 @@ function createRouter(db) {
             const periodEndDate = new Date(periodEndSec * 1000);
             const now = new Date();
             if (periodEndDate < now) {
-              // Period has ended, next period: period_end -> period_end + 30 days
               periodStart = periodEndSec;
-              const nextEnd = new Date(periodEndDate);
-              nextEnd.setDate(nextEnd.getDate() + 30);
-              periodEnd = Math.floor(nextEnd.getTime() / 1000);
+              const endYmd = ymdFromUnixSecondsDenver(periodEndSec);
+              const anchorSec =
+                stripeSubscription.billing_cycle_anchor ||
+                stripeSubscription.start_date ||
+                stripeSubscription.current_period_start;
+              const anchorYmd = ymdFromUnixSecondsDenver(anchorSec) || endYmd;
+              const nextEndYmd = endYmd && anchorYmd ? advanceOneBillingPeriodDenver(endYmd, anchorYmd) : null;
+              const nextUnix = nextEndYmd ? denverEndOfDayUnixFromYmd(nextEndYmd) : null;
+              if (nextUnix != null) {
+                periodEnd = nextUnix;
+              } else {
+                const nextEnd = new Date(periodEndDate);
+                nextEnd.setDate(nextEnd.getDate() + 30);
+                periodEnd = Math.floor(nextEnd.getTime() / 1000);
+              }
             }
           }
         }
@@ -6475,6 +7400,40 @@ function createRouter(db) {
             response.contract.next_payment_due_date = formatDateForResponse(d);
           }
         }
+
+        // My Account contract panel: distinguish "Today" vs "Paid" when due date is today (Denver).
+        const dueForPanel = response.contract.next_payment_due_date;
+        let next_payment_due_is_paid = false;
+        let next_payment_due_is_today = false;
+        if (dueForPanel) {
+          const dueY = String(dueForPanel).trim().split('T')[0].split(' ')[0];
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dueY)) {
+            const todayDenver = todayYmdDenver();
+            if (dueY === todayDenver) {
+              next_payment_due_is_today = true;
+              const lastPay = await db.queryOne(
+                db.isPostgres
+                  ? `SELECT MAX(p.created_at) AS last_at
+                     FROM payments p
+                     WHERE p.user_id = $1 AND p.status = 'succeeded'
+                       AND p.tier IN ('gym_membership', 'gym_membership_late_fee')`
+                  : `SELECT MAX(p.created_at) AS last_at
+                     FROM payments p
+                     WHERE p.user_id = ? AND p.status = 'succeeded'
+                       AND p.tier IN ('gym_membership', 'gym_membership_late_fee')`,
+                [userId]
+              );
+              const lastAt = lastPay && lastPay.last_at;
+              const paidYmd = lastAt ? subscriptionEndToYmdDenver(lastAt) : null;
+              if (paidYmd && paidYmd >= dueY) {
+                next_payment_due_is_paid = true;
+                next_payment_due_is_today = false;
+              }
+            }
+          }
+        }
+        response.contract.next_payment_due_is_paid = next_payment_due_is_paid;
+        response.contract.next_payment_due_is_today = next_payment_due_is_today;
       }
 
       if (!stripeSubscription) {
@@ -6506,7 +7465,134 @@ function createRouter(db) {
           };
         }
       }
-      
+
+      // Helps My Account invoice: compare last succeeded gym payment to current household subtotal vs discounted total.
+      try {
+        let householdSubtotal = 0;
+        if (response.primaryMember) {
+          householdSubtotal = Number(response.primaryMember.price || 0);
+          for (const fm of response.familyMembers || []) {
+            const pr = Number(fm?.price || 0);
+            if (Number.isFinite(pr)) householdSubtotal += pr;
+          }
+        } else {
+          householdSubtotal = Number(response.membership?.price || 0);
+          for (const fm of response.familyMembers || []) {
+            const pr = Number(fm?.price || 0);
+            if (Number.isFinite(pr)) householdSubtotal += pr;
+          }
+        }
+        householdSubtotal = Math.round(householdSubtotal * 100) / 100;
+        const gd = response.groupDiscount;
+        const pct = gd && gd.hasDiscount ? Number(gd.discountPercent || 0) : 0;
+        const groupDiscountDollars = pct > 0 ? Math.round(householdSubtotal * (pct / 100) * 100) / 100 : 0;
+        const nextTotal = Math.round((householdSubtotal - groupDiscountDollars) * 100) / 100;
+
+        const lastPayRow = await db.queryOne(
+          db.isPostgres
+            ? `SELECT p.amount, p.created_at, p.tier
+               FROM payments p
+               WHERE p.user_id = $1 AND p.status = 'succeeded'
+                 AND p.tier IN ('gym_membership', 'gym_membership_late_fee')
+               ORDER BY p.created_at DESC NULLS LAST
+               LIMIT 1`
+            : `SELECT p.amount, p.created_at, p.tier
+               FROM payments p
+               WHERE p.user_id = ? AND p.status = 'succeeded'
+                 AND p.tier IN ('gym_membership', 'gym_membership_late_fee')
+               ORDER BY p.created_at DESC
+               LIMIT 1`,
+          [userId]
+        );
+
+        let lastCharge = null;
+        if (lastPayRow && lastPayRow.amount != null) {
+          const amountDollars = Math.round(Number(lastPayRow.amount) / 100 * 100) / 100;
+          const tier = String(lastPayRow.tier || '');
+          const eps = 0.06;
+          let match = 'other';
+          if (tier === 'gym_membership_late_fee') {
+            match = 'late_fee';
+          } else {
+            const atDiscounted = Math.abs(amountDollars - nextTotal) <= eps;
+            const atRegular = Math.abs(amountDollars - householdSubtotal) <= eps;
+            if (atDiscounted && atRegular) {
+              match = 'regular_subtotal';
+            } else if (atDiscounted) {
+              match = gd && gd.hasDiscount ? 'discounted_total' : 'regular_subtotal';
+            } else if (atRegular) {
+              match = 'regular_subtotal';
+            } else {
+              match = 'other';
+            }
+          }
+          lastCharge = {
+            charged_at: lastPayRow.created_at,
+            amount_dollars: amountDollars,
+            tier,
+            match
+          };
+        }
+
+        const dueYmd = response.contract?.next_payment_due_date
+          ? String(response.contract.next_payment_due_date).trim().split('T')[0].split(' ')[0]
+          : null;
+
+        // Next charge date for UI: prefer Stripe period end (actual next invoice). If it still falls on
+        // the same Denver calendar day as the last gym payment, roll forward 30 days so "last" vs "next"
+        // are not the same confusing date.
+        let nextChargeDisplayYmd = dueYmd && /^\d{4}-\d{2}-\d{2}$/.test(dueYmd) ? dueYmd : null;
+        if (response.stripe && response.stripe.current_period_end) {
+          const d = new Date(response.stripe.current_period_end);
+          if (!isNaN(d.getTime())) {
+            const fromStripe = formatDateForResponse(d);
+            if (fromStripe && /^\d{4}-\d{2}-\d{2}$/.test(fromStripe)) {
+              nextChargeDisplayYmd = fromStripe;
+            }
+          }
+        }
+        if (lastPayRow && lastPayRow.created_at && nextChargeDisplayYmd) {
+          const lastYmd = subscriptionEndToYmdDenver(lastPayRow.created_at);
+          const tierLast = String(lastPayRow.tier || '');
+          if (lastYmd && nextChargeDisplayYmd === lastYmd && tierLast === 'gym_membership') {
+            const bumped = ymdPlusCalendarDaysDenver(nextChargeDisplayYmd, 30);
+            if (bumped) nextChargeDisplayYmd = bumped;
+          }
+        }
+
+        const lastWasRegularUpcomingDiscounted = !!(
+          lastCharge &&
+          lastCharge.match === 'regular_subtotal' &&
+          gd &&
+          gd.hasDiscount &&
+          groupDiscountDollars > 0
+        );
+
+        response.billing_charge_summary = {
+          household_subtotal_dollars: householdSubtotal,
+          group_discount_percent: pct,
+          group_discount_dollars: groupDiscountDollars,
+          next_total_dollars: nextTotal,
+          group_discount_applies: !!(gd && gd.hasDiscount),
+          last_charge: lastCharge,
+          last_was_regular_rate_next_includes_group_discount: lastWasRegularUpcomingDiscounted,
+          upcoming: {
+            due_date_ymd: dueYmd && /^\d{4}-\d{2}-\d{2}$/.test(dueYmd) ? dueYmd : null,
+            next_charge_display_ymd:
+              nextChargeDisplayYmd && /^\d{4}-\d{2}-\d{2}$/.test(nextChargeDisplayYmd)
+                ? nextChargeDisplayYmd
+                : null,
+            household_subtotal_dollars: householdSubtotal,
+            group_discount_dollars: groupDiscountDollars,
+            total_dollars: nextTotal,
+            group_discount_applies: !!(gd && gd.hasDiscount)
+          }
+        };
+      } catch (billingSumErr) {
+        console.warn('billing_charge_summary:', billingSumErr.message);
+        response.billing_charge_summary = null;
+      }
+
       res.json(response);
     } catch (error) {
       console.error('Get gym membership error:', error);
@@ -6882,7 +7968,7 @@ function createRouter(db) {
       if (!membership) {
         return res.status(404).json({ error: 'No gym membership found' });
       }
-      const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge'] });
       if (pi.status !== 'succeeded') {
         return res.status(400).json({ error: 'Payment intent not succeeded' });
       }
@@ -6913,25 +7999,31 @@ function createRouter(db) {
           }
           throw payErr;
         }
-        // Extend contract_end_date by one month
+        // Extend contract_end_date (calendar month, Mountain), same as nightly renewal
         const contractEndStr = membership.contract_end_date ? String(membership.contract_end_date).trim().split('T')[0].split(' ')[0] : null;
-        if (contractEndStr && /^\d{4}-\d{2}-\d{2}$/.test(contractEndStr)) {
-          const endDate = new Date(contractEndStr + 'T00:00:00Z');
-          endDate.setUTCMonth(endDate.getUTCMonth() + 1);
-          const newEndStr = endDate.toISOString().split('T')[0];
+        const anchorOneOff = gymBillingAnchorYmdFromMembershipRow(membership);
+        if (contractEndStr && /^\d{4}-\d{2}-\d{2}$/.test(contractEndStr) && anchorOneOff) {
+          const newEndStr = nextGymContractEndYmdDenver(contractEndStr, anchorOneOff);
+          let startOneOff = null;
+          try {
+            const { contractStartYmd } = await getContractStartEndYmdFromSucceededPaymentIntent(stripe, pi);
+            startOneOff = gymContractStartYmdToPersistOnPayment(membership, contractStartYmd);
+          } catch (_) {
+            startOneOff = gymContractStartYmdToPersistOnPayment(membership, null);
+          }
           if (membership.family_group_id && membership.is_primary_member) {
             await db.query(
               db.isPostgres
-                ? 'UPDATE gym_memberships SET contract_end_date = $1, status = \'active\', updated_at = CURRENT_TIMESTAMP WHERE family_group_id = $2'
-                : 'UPDATE gym_memberships SET contract_end_date = ?, status = \'active\', updated_at = datetime(\'now\') WHERE family_group_id = ?',
-              [newEndStr, membership.family_group_id]
+                ? 'UPDATE gym_memberships SET contract_end_date = $1, contract_start_date = COALESCE($2::date, contract_start_date), status = \'active\', updated_at = CURRENT_TIMESTAMP WHERE family_group_id = $3'
+                : 'UPDATE gym_memberships SET contract_end_date = ?, contract_start_date = COALESCE(?, contract_start_date), status = \'active\', updated_at = datetime(\'now\') WHERE family_group_id = ?',
+              [newEndStr, startOneOff, membership.family_group_id]
             );
           } else {
             await db.query(
               db.isPostgres
-                ? 'UPDATE gym_memberships SET contract_end_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2'
-                : 'UPDATE gym_memberships SET contract_end_date = ?, updated_at = datetime(\'now\') WHERE id = ?',
-              [newEndStr, membership.id]
+                ? 'UPDATE gym_memberships SET contract_end_date = $1, contract_start_date = COALESCE($2::date, contract_start_date), updated_at = CURRENT_TIMESTAMP WHERE id = $3'
+                : 'UPDATE gym_memberships SET contract_end_date = ?, contract_start_date = COALESCE(?, contract_start_date), updated_at = datetime(\'now\') WHERE id = ?',
+              [newEndStr, startOneOff, membership.id]
             );
           }
         }
@@ -7397,18 +8489,23 @@ function createRouter(db) {
   // NOTE: Intentionally unauthenticated so visitors can pay a drop-in fee without signing in.
   router.post('/gym-memberships/drop-in/create-payment-intent', async (req, res) => {
     try {
-      const { email, waiverSignature } = req.body || {};
+      const { email, waiverSignature, visitorName } = req.body || {};
 
       if (!email || !waiverSignature) {
         return res.status(400).json({ error: 'Email and waiver signature are required' });
       }
 
       const normalizedEmail = String(email).trim().toLowerCase();
+      const sigTrim = String(waiverSignature).trim();
+      const displayNameRaw = String(visitorName || sigTrim || '').trim().slice(0, 200);
       let user = await db.getUserByEmail(normalizedEmail);
       if (!user) {
-        // Create a lightweight user record so the payment can be associated to an account for future visits
+        // Lightweight account: same user_id is used for payments so drop-ins appear in Gym → Payment history after they register or sign in with Google on this email.
         const placeholderPassword = 'DROPIN_USER_' + Date.now() + Math.random().toString(36);
-        user = await db.createUser(normalizedEmail, placeholderPassword);
+        user = await db.createUser(normalizedEmail, placeholderPassword, displayNameRaw || null, { dropInOnly: true });
+      } else if (displayNameRaw && (!user.name || !String(user.name).trim())) {
+        await db.updateUserName(user.id, displayNameRaw);
+        user = await db.getUserByEmail(normalizedEmail);
       }
       const userId = user.id;
 
@@ -7424,7 +8521,7 @@ function createRouter(db) {
         );
       }
 
-      const amount = 500; // $5.00
+      const amount = DROP_IN_AMOUNT_CENTS;
       const paymentIntent = await stripe.paymentIntents.create({
         amount,
         currency: 'usd',
@@ -7433,7 +8530,8 @@ function createRouter(db) {
           userId: userId.toString(),
           type: 'drop_in',
           email: String(email).slice(0, 500),
-          waiverSignature: String(waiverSignature).slice(0, 500)
+          waiverSignature: sigTrim.slice(0, 500),
+          visitorName: displayNameRaw.slice(0, 200)
         },
         automatic_payment_methods: { enabled: true }
       });
@@ -7444,7 +8542,9 @@ function createRouter(db) {
 
       res.json({
         clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.id
+        paymentIntentId: paymentIntent.id,
+        amountCents: amount,
+        amountDisplay: DROP_IN_FEE_DISPLAY
       });
     } catch (error) {
       console.error('Drop-in create payment intent error:', error);
@@ -7495,6 +8595,13 @@ function createRouter(db) {
         'succeeded',
         email
       );
+      const metaSig = String(paymentIntent.metadata?.waiverSignature || '').trim().slice(0, 200);
+      if (metaSig) {
+        const u = await db.getUserById(userId);
+        if (u && (!u.name || !String(u.name).trim())) {
+          await db.updateUserName(userId, metaSig);
+        }
+      }
       res.json({ ok: true });
     } catch (error) {
       console.error('Drop-in client confirm error:', error);
@@ -7916,15 +9023,27 @@ function createRouter(db) {
           if (paymentIntent.status === 'succeeded') {
             const user = await db.getUserById(userId);
             await db.createPayment(userId, paymentIntent.id, amountCents, 'usd', 'gym_membership', 'succeeded', user?.email || null);
-            const currentEnd = contractEndDate;
-            const newEnd = new Date(currentEnd);
-            newEnd.setUTCMonth(newEnd.getUTCMonth() + 1);
-            const newEndStr = newEnd.toISOString().split('T')[0];
+            const anchorFirst = gymBillingAnchorYmdFromMembershipRow(membership);
+            const newEndStr =
+              contractEndStr && /^\d{4}-\d{2}-\d{2}$/.test(contractEndStr) && anchorFirst
+                ? nextGymContractEndYmdDenver(contractEndStr, anchorFirst)
+                : null;
+            if (!newEndStr) {
+              return res.status(500).json({ error: 'Could not compute next contract end date after first charge.' });
+            }
+            let startFirst = null;
+            try {
+              const piFull = await stripe.paymentIntents.retrieve(paymentIntent.id, { expand: ['latest_charge'] });
+              const { contractStartYmd } = await getContractStartEndYmdFromSucceededPaymentIntent(stripe, piFull);
+              startFirst = gymContractStartYmdToPersistOnPayment(membership, contractStartYmd);
+            } catch (_) {
+              startFirst = gymContractStartYmdToPersistOnPayment(membership, null);
+            }
             await db.query(
               db.isPostgres
-                ? 'UPDATE gym_memberships SET contract_end_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2'
-                : 'UPDATE gym_memberships SET contract_end_date = ?, updated_at = datetime(\'now\') WHERE id = ?',
-              [newEndStr, membership.id]
+                ? 'UPDATE gym_memberships SET contract_end_date = $1, contract_start_date = COALESCE($2::date, contract_start_date), updated_at = CURRENT_TIMESTAMP WHERE id = $3'
+                : 'UPDATE gym_memberships SET contract_end_date = ?, contract_start_date = COALESCE(?, contract_start_date), updated_at = datetime(\'now\') WHERE id = ?',
+              [newEndStr, startFirst, membership.id]
             );
             return res.json({
               success: true,

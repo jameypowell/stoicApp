@@ -13,7 +13,7 @@ const PROD_CONFIG = {
   STRIPE_PRICE_DAILY: 'price_1SUwEpF0CLysN1jANPvhIp7s',
   STRIPE_PRICE_WEEKLY: 'price_1SUwG8F0CLysN1jA367NrtiT',
   STRIPE_PRICE_MONTHLY: 'price_1SUwH8F0CLysN1jAvy1aMz3E',
-  BILLING_MODE: 'stripe_subscriptions'
+  BILLING_MODE: 'one_time'
 };
 
 console.log('\n' + '='.repeat(80));
@@ -64,7 +64,7 @@ function checkCodeCompatibility() {
     'Supports STRIPE_PRICE_TIER_FOUR': routesContent.includes('STRIPE_PRICE_TIER_FOUR'),
     'Supports STRIPE_PRICE_MONTHLY (legacy)': routesContent.includes('STRIPE_PRICE_MONTHLY'),
     'Uses normalizeTier function': routesContent.includes('normalizeTier'),
-    'BILLING_MODE check exists': routesContent.includes('BILLING_MODE'),
+    'App checkout avoids Stripe Subscriptions (no stripe_subscriptions branch)': !routesContent.includes("billingMode === 'stripe_subscriptions'"),
   };
   
   for (const [check, passed] of Object.entries(checks)) {
@@ -86,7 +86,7 @@ function checkEnvVarMapping() {
   console.log(`    tier_two   → STRIPE_PRICE_DAILY=${PROD_CONFIG.STRIPE_PRICE_DAILY}`);
   console.log(`    tier_three → STRIPE_PRICE_WEEKLY=${PROD_CONFIG.STRIPE_PRICE_WEEKLY}`);
   console.log(`    tier_four  → STRIPE_PRICE_MONTHLY=${PROD_CONFIG.STRIPE_PRICE_MONTHLY}`);
-  console.log(`    BILLING_MODE=${PROD_CONFIG.BILLING_MODE}`);
+  console.log(`    BILLING_MODE=${PROD_CONFIG.BILLING_MODE} (optional; app tiers use PaymentIntents + DB)`);
   console.log('');
   
   console.log('  ✅ Code supports fallback: STRIPE_PRICE_TIER_* || STRIPE_PRICE_* (legacy)');
@@ -104,7 +104,7 @@ function checkCriticalFunctions() {
   
   const functions = {
     'normalizeTier function': paymentsContent.includes('function normalizeTier'),
-    'getPriceIdForTier function': routesContent.includes('function getPriceIdForTier'),
+    'payments/create-intent uses createPaymentIntent': routesContent.includes('/payments/create-intent') && routesContent.includes('createPaymentIntent'),
     'createSubscription function': paymentsContent.includes('function createSubscription'),
     'updateSubscriptionItem function': paymentsContent.includes('function updateSubscriptionItem'),
     'updateSubscriptionItemForUpgrade function': paymentsContent.includes('function updateSubscriptionItemForUpgrade'),

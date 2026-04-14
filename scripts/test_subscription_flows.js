@@ -57,8 +57,8 @@ function testNewSubscription(tier) {
   console.log(`\n💳 Stripe Data:`);
   console.log(`   Charge Amount: ${formatCurrency(TIER_PRICING[tier])} (full month)`);
   console.log(`   Price ID: ${getPriceIdForTier(tier) || 'MISSING'}`);
-  console.log(`   Billing Mode: stripe_subscriptions`);
-  console.log(`   Payment Behavior: default_incomplete (requires payment method)`);
+  console.log(`   Billing: PaymentIntent (setup_future_usage off_session) + DB subscription row`);
+  console.log(`   Activation: /payments/confirm and/or payment_intent.succeeded webhook`);
   console.log(`   Metadata: { userId, tier: "${normalizeTier(tier)}", isUpgrade: "false" }`);
   
   if (!getPriceIdForTier(tier)) {

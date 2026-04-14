@@ -71,13 +71,22 @@ describe('Workout Access and Carousel Display', () => {
       CREATE TABLE IF NOT EXISTS subscriptions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
-        tier TEXT NOT NULL CHECK(tier IN ('daily', 'weekly', 'monthly')),
+        tier TEXT NOT NULL CHECK(tier IN ('daily', 'weekly', 'monthly', 'tier_one', 'tier_two', 'tier_three', 'tier_four')),
         stripe_customer_id TEXT,
         stripe_subscription_id TEXT,
-        status TEXT NOT NULL CHECK(status IN ('active', 'canceled', 'expired')) DEFAULT 'active',
+        status TEXT NOT NULL CHECK(status IN ('active', 'canceled', 'expired', 'grace_period', 'paused', 'free_trial')) DEFAULT 'active',
         start_date DATETIME DEFAULT CURRENT_TIMESTAMP,
         end_date DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        payment_method_id TEXT,
+        payment_method_expires_at DATETIME,
+        payment_failure_count INTEGER DEFAULT 0,
+        last_payment_failure_at DATETIME,
+        grace_period_ends_at DATETIME,
+        stripe_status TEXT,
+        last_synced_at DATETIME,
+        sync_error TEXT,
+        canceled_by_user_at DATETIME,
         FOREIGN KEY (user_id) REFERENCES users(id)
       )
     `);

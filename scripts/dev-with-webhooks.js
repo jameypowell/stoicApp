@@ -10,7 +10,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '.env'), override: true });
 
 const PORT = process.env.PORT || 3000;
 

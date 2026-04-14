@@ -1,31 +1,22 @@
 #!/usr/bin/env node
 /**
- * Reset password for a user in the local database
- * 
+ * Reset password for a user in the local database (SQLite or Postgres — whatever .env uses).
+ *
  * Usage: node scripts/reset_local_password.js <email> <newPassword>
- * Example: node scripts/reset_local_password.js jameypowell@gmail.com testtest
+ * Example: node scripts/reset_local_password.js you@example.com my-local-dev-password
  */
 
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env'), override: true });
 const { initDatabase, Database } = require('../database');
 const bcrypt = require('bcryptjs');
 
 async function resetPassword(email, newPassword) {
   try {
     console.log(`Resetting password for ${email}...`);
-    
-    // Force SQLite for local development by unsetting DB_HOST
-    const originalDbHost = process.env.DB_HOST;
-    delete process.env.DB_HOST;
-    
-    // Initialize database (will use SQLite if DB_HOST is not set)
+
     const dbConnection = await initDatabase();
     const db = new Database(dbConnection);
-    
-    // Restore DB_HOST if it was set
-    if (originalDbHost) {
-      process.env.DB_HOST = originalDbHost;
-    }
     
     // Check if user exists
     const user = await db.getUserByEmail(email);

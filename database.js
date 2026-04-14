@@ -28,6 +28,24 @@ const resolveDbPath = () => {
 
 const DB_PATH = resolveDbPath();
 
+/** Non-negative integer days-ahead for SQL (gym due windows). */
+function safeGymDaysAheadInt(raw, def = 2, max = 366) {
+  const n = parseInt(String(raw), 10);
+  if (!Number.isFinite(n) || n < 0) return def;
+  return Math.min(max, n);
+}
+
+/** Today as YYYY-MM-DD in America/Denver (SQLite gym date comparisons). */
+function denverTodayYmdForDb() {
+  return DateTime.now().setZone(AMERICA_DENVER).startOf('day').toFormat('yyyy-MM-dd');
+}
+
+/** Calendar date YYYY-MM-DD: today (Denver) + daysAhead. */
+function denverBoundaryDateYmd(daysAhead) {
+  const d = safeGymDaysAheadInt(daysAhead);
+  return DateTime.now().setZone(AMERICA_DENVER).startOf('day').plus({ days: d }).toFormat('yyyy-MM-dd');
+}
+
 // Ensure data directory exists (only when path points to local filesystem)
 if (!USE_POSTGRES) {
   try {
@@ -50,6 +68,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT,
   role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin', 'tester')),
   stripe_customer_id TEXT,
+  drop_in_only_account BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   last_login TIMESTAMP,
@@ -406,6 +425,20 @@ CREATE TABLE IF NOT EXISTS app_payment_error_logs (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
+-- Members request a 6-digit login code from staff (no automated email)
+CREATE TABLE IF NOT EXISTS login_code_requests (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  email TEXT NOT NULL,
+  member_note TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dismissed')),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  dismissed_at TIMESTAMP,
+  dismissed_by_admin_id INTEGER,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (dismissed_by_admin_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- Note: Foreign key constraint for family_group_id will be handled by application logic
 -- as ALTER TABLE ADD CONSTRAINT may fail if constraint already exists
 
@@ -419,6 +452,8 @@ CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tok
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_login_codes_user_id ON login_codes(user_id);
 CREATE INDEX IF NOT EXISTS idx_login_codes_expires_at ON login_codes(expires_at);
+CREATE INDEX IF NOT EXISTS idx_login_code_requests_status ON login_code_requests(status);
+CREATE INDEX IF NOT EXISTS idx_login_code_requests_user ON login_code_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_macro_plans_user_id ON macro_plans(user_id);
 CREATE INDEX IF NOT EXISTS idx_gym_memberships_user_id ON gym_memberships(user_id);
 CREATE INDEX IF NOT EXISTS idx_gym_memberships_family_group_id ON gym_memberships(family_group_id);
@@ -444,6 +479,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT,
   role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin', 'tester')),
   stripe_customer_id TEXT,
+  drop_in_only_account INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   last_login DATETIME,
@@ -813,6 +849,20 @@ CREATE TABLE IF NOT EXISTS app_payment_error_logs (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+-- Members request a 6-digit login code from staff (no automated email)
+CREATE TABLE IF NOT EXISTS login_code_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  email TEXT NOT NULL,
+  member_note TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dismissed')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  dismissed_at DATETIME,
+  dismissed_by_admin_id INTEGER,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (dismissed_by_admin_id) REFERENCES users(id)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
@@ -823,6 +873,8 @@ CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tok
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_login_codes_user_id ON login_codes(user_id);
 CREATE INDEX IF NOT EXISTS idx_login_codes_expires_at ON login_codes(expires_at);
+CREATE INDEX IF NOT EXISTS idx_login_code_requests_status ON login_code_requests(status);
+CREATE INDEX IF NOT EXISTS idx_login_code_requests_user ON login_code_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_macro_plans_user_id ON macro_plans(user_id);
 CREATE INDEX IF NOT EXISTS idx_gym_memberships_user_id ON gym_memberships(user_id);
 CREATE INDEX IF NOT EXISTS idx_gym_memberships_family_group_id ON gym_memberships(family_group_id);
@@ -837,6 +889,45 @@ CREATE INDEX IF NOT EXISTS idx_meal_plan_inputs_user_id ON meal_plan_inputs(user
 CREATE INDEX IF NOT EXISTS idx_core_finishers_viewed_user_id ON core_finishers_viewed(user_id);
 CREATE INDEX IF NOT EXISTS idx_strength_workouts_viewed_user_id ON strength_workouts_viewed(user_id);
 `;
+
+/** Admin reporting: one row per payment with user fields (Postgres: view; SQLite: view recreated on init). */
+const PAYMENT_TRANSACTIONS_VIEW_SQL_POSTGRES = `
+CREATE OR REPLACE VIEW transactions AS
+SELECT
+  p.id,
+  p.user_id,
+  p.stripe_payment_intent_id,
+  p.amount,
+  p.currency,
+  p.tier,
+  p.status,
+  p.email AS payment_email,
+  p.created_at,
+  u.name,
+  u.email AS user_email,
+  u.role AS user_role
+FROM payments p
+INNER JOIN users u ON u.id = p.user_id
+`.trim();
+
+const PAYMENT_TRANSACTIONS_VIEW_SQL_SQLITE = `
+CREATE VIEW transactions AS
+SELECT
+  p.id,
+  p.user_id,
+  p.stripe_payment_intent_id,
+  p.amount,
+  p.currency,
+  p.tier,
+  p.status,
+  p.email AS payment_email,
+  p.created_at,
+  u.name,
+  u.email AS user_email,
+  u.role AS user_role
+FROM payments p
+INNER JOIN users u ON u.id = p.user_id
+`.trim();
 
 /** One-time / idempotent: fix gym rows where end is exactly 29 calendar days after start (policy: 30-day period). */
 function sqliteFixGymContractEnd29DayBug(db, callback) {
@@ -856,6 +947,51 @@ function sqliteFixGymContractEnd29DayBug(db, callback) {
       callback();
     }
   );
+}
+
+function sqliteEnsureUsersDropInOnlyColumn(db, callback) {
+  db.all('PRAGMA table_info(users)', (err, cols) => {
+    if (err || !cols) {
+      console.warn('SQLite: could not inspect users columns:', err && err.message);
+      return callback();
+    }
+    if (cols.some((c) => c.name === 'drop_in_only_account')) {
+      return callback();
+    }
+    db.run(
+      'ALTER TABLE users ADD COLUMN drop_in_only_account INTEGER NOT NULL DEFAULT 0',
+      (alterErr) => {
+        if (alterErr) {
+          console.warn('SQLite: could not add drop_in_only_account:', alterErr.message);
+        } else {
+          console.log('SQLite: added drop_in_only_account column to users');
+        }
+        callback();
+      }
+    );
+  });
+}
+
+function sqliteEnsurePaymentTransactionsView(db, callback) {
+  db.run('DROP VIEW IF EXISTS transactions', (dropErr) => {
+    if (dropErr) {
+      console.warn('SQLite: could not drop transactions view:', dropErr.message);
+      return callback();
+    }
+    db.run(PAYMENT_TRANSACTIONS_VIEW_SQL_SQLITE, (createErr) => {
+      if (createErr) {
+        console.warn('SQLite: could not create transactions view:', createErr.message);
+      } else {
+        console.log('SQLite: ensured transactions view (payments + users)');
+      }
+      callback();
+    });
+  });
+}
+
+function sqliteFinishMigrations(db, callback) {
+  sqliteFixGymContractEnd29DayBug(db, () =>
+    sqliteEnsureUsersDropInOnlyColumn(db, () => sqliteEnsurePaymentTransactionsView(db, callback)));
 }
 
 // Helper function to add hybrid system columns to SQLite tables
@@ -1054,6 +1190,16 @@ async function initDatabase() {
       await client.connect();
       console.log('Connected to PostgreSQL database');
 
+      const baseTables = await client.query(`
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'users'
+        LIMIT 1
+      `);
+      if (baseTables.rows.length === 0) {
+        await client.query(POSTGRES_SCHEMA);
+        console.log('PostgreSQL: applied base schema (fresh database)');
+      }
+
       // Check and add household_id column if it doesn't exist BEFORE running schema
       // This prevents index creation errors if the column doesn't exist
       const columnCheck = await client.query(`
@@ -1116,6 +1262,19 @@ async function initDatabase() {
       if (stripeCustomerCheck.rows.length === 0) {
         await client.query('ALTER TABLE users ADD COLUMN stripe_customer_id TEXT');
         console.log('Added stripe_customer_id column to existing users table');
+      }
+
+      const dropInOnlyCheck = await client.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'users'
+        AND column_name = 'drop_in_only_account'
+      `);
+      if (dropInOnlyCheck.rows.length === 0) {
+        await client.query(
+          'ALTER TABLE users ADD COLUMN drop_in_only_account BOOLEAN NOT NULL DEFAULT FALSE'
+        );
+        console.log('Added drop_in_only_account column to existing users table');
       }
 
       // Add email column to payments table for drop-in tracking
@@ -1406,6 +1565,13 @@ async function initDatabase() {
 
       console.log('PostgreSQL schema initialized');
 
+      try {
+        await client.query(PAYMENT_TRANSACTIONS_VIEW_SQL_POSTGRES);
+        console.log('Ensured transactions view (payments + users)');
+      } catch (e) {
+        console.warn('Could not ensure transactions view:', e.message);
+      }
+
       return client;
     } catch (error) {
       console.error('Error connecting to PostgreSQL:', error);
@@ -1565,7 +1731,7 @@ async function initDatabase() {
                         }
                         
                         // Add hybrid system columns to subscriptions and gym_memberships
-                        addHybridSystemColumns(db, () => sqliteFixGymContractEnd29DayBug(db, () => resolve(db)));
+                        addHybridSystemColumns(db, () => sqliteFinishMigrations(db, () => resolve(db)));
                       };
                       
                       addColumns();
@@ -1615,7 +1781,7 @@ async function initDatabase() {
                         db.all("PRAGMA table_info(free_trials)", (err, freeTrialColumns) => {
                           if (err) {
                             // If we can't introspect, just move on
-                            ensureAdminAddedMembersAndGroupName(db, () => addHybridSystemColumns(db, () => sqliteFixGymContractEnd29DayBug(db, () => resolve(db))));
+                            ensureAdminAddedMembersAndGroupName(db, () => addHybridSystemColumns(db, () => sqliteFinishMigrations(db, () => resolve(db))));
                             return;
                           }
                           const hasQuestion = freeTrialColumns && freeTrialColumns.some(col => col.name === 'question');
@@ -1626,10 +1792,10 @@ async function initDatabase() {
                               } else {
                                 console.log('Added question column to existing free_trials table');
                               }
-                              ensureAdminAddedMembersAndGroupName(db, () => addHybridSystemColumns(db, () => sqliteFixGymContractEnd29DayBug(db, () => resolve(db))));
+                              ensureAdminAddedMembersAndGroupName(db, () => addHybridSystemColumns(db, () => sqliteFinishMigrations(db, () => resolve(db))));
                             });
                           } else {
-                            ensureAdminAddedMembersAndGroupName(db, () => addHybridSystemColumns(db, () => sqliteFixGymContractEnd29DayBug(db, () => resolve(db))));
+                            ensureAdminAddedMembersAndGroupName(db, () => addHybridSystemColumns(db, () => sqliteFinishMigrations(db, () => resolve(db))));
                           }
                         });
                       };
@@ -1761,6 +1927,19 @@ class Database {
     }
   }
 
+  /**
+   * Idempotent: Postgres `CREATE OR REPLACE VIEW transactions`; SQLite drop + create.
+   * Used on startup (SQLite) and after schema (Postgres); runnable via scripts/ensure-payment-transactions-view.js.
+   */
+  async ensurePaymentTransactionsView() {
+    if (this.isPostgres) {
+      await this.query(PAYMENT_TRANSACTIONS_VIEW_SQL_POSTGRES);
+      return;
+    }
+    await this.query('DROP VIEW IF EXISTS transactions');
+    await this.query(PAYMENT_TRANSACTIONS_VIEW_SQL_SQLITE);
+  }
+
   // Helper method for single row queries
   async queryOne(sql, params = []) {
     if (this.isPostgres) {
@@ -1798,58 +1977,85 @@ class Database {
 
 
   // User operations
-  async createUser(email, password, name = null) {
+  async createUser(email, password, name = null, options = null) {
     const passwordHash = await bcrypt.hash(password, 10);
-    // Try to insert with name if provided, but handle gracefully if column doesn't exist
+    const dropInOnly = options && options.dropInOnly === true;
+    let nameVal = null;
+    if (name != null && String(name).trim()) {
+      nameVal = String(name).trim().slice(0, 200);
+    }
+    // Try to insert with name + drop_in_only_account; handle gracefully if columns are missing on old DBs
     try {
       if (this.isPostgres) {
         const result = await this.query(
-          'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id',
-          [email, passwordHash, name]
+          'INSERT INTO users (email, password_hash, name, drop_in_only_account) VALUES ($1, $2, $3, $4) RETURNING id',
+          [email, passwordHash, nameVal, dropInOnly]
         );
-        return { id: result.rows[0]?.id, email, name };
-      } else {
+        return { id: result.rows[0]?.id, email, name: nameVal };
+      }
+      const result = await this.query(
+        'INSERT INTO users (email, password_hash, name, drop_in_only_account) VALUES (?, ?, ?, ?)',
+        [email, passwordHash, nameVal, dropInOnly ? 1 : 0]
+      );
+      return { id: result.lastID, email, name: nameVal };
+    } catch (error) {
+      const msg = String(error.message || '');
+      if (msg.includes('drop_in_only_account')) {
+        if (this.isPostgres) {
+          const result = await this.query(
+            'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id',
+            [email, passwordHash, nameVal]
+          );
+          return { id: result.rows[0]?.id, email, name: nameVal };
+        }
         const result = await this.query(
           'INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)',
-          [email, passwordHash, name]
+          [email, passwordHash, nameVal]
         );
-        return { id: result.lastID, email, name };
+        return { id: result.lastID, email, name: nameVal };
       }
-    } catch (error) {
-      // If name column doesn't exist, try without it
-      if (error.message && error.message.includes('name')) {
+      if (msg.includes('name')) {
         if (this.isPostgres) {
           const result = await this.query(
             'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id',
             [email, passwordHash]
           );
           return { id: result.rows[0]?.id, email };
-        } else {
-          const result = await this.query(
-            'INSERT INTO users (email, password_hash) VALUES (?, ?)',
-            [email, passwordHash]
-          );
-          return { id: result.lastID, email };
         }
+        const result = await this.query(
+          'INSERT INTO users (email, password_hash) VALUES (?, ?)',
+          [email, passwordHash]
+        );
+        return { id: result.lastID, email };
       }
       throw error;
     }
   }
 
   async updateUserName(userId, name) {
+    const uid = parseInt(userId, 10);
+    if (!Number.isFinite(uid) || uid < 1) return false;
+    const trimmed = typeof name === 'string' ? name.trim().slice(0, 200) : '';
+    if (!trimmed) return false;
+    const existing = await this.getUserById(uid);
+    if (!existing) return false;
+    if (String(existing.name || '') === trimmed) {
+      return true;
+    }
     if (this.isPostgres) {
       const result = await this.query(
         `UPDATE users SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-        [name, userId]
-      );
-      return result.changes > 0;
-    } else {
-      const result = await this.query(
-        `UPDATE users SET name = ?, updated_at = datetime('now') WHERE id = ?`,
-        [name, userId]
+        [trimmed, uid]
       );
       return result.changes > 0;
     }
+    const result = await this.query(
+      `UPDATE users SET name = ?, updated_at = datetime('now') WHERE id = ?`,
+      [trimmed, uid]
+    );
+    if (result.changes > 0) return true;
+    const row = await this.queryOne('SELECT name FROM users WHERE id = ?', [uid]);
+    return row && String(row.name || '') === trimmed;
   }
 
   async getUserByEmail(email) {
@@ -1868,6 +2074,16 @@ class Database {
     } else {
       return await this.queryOne('SELECT id, email, name, role, created_at FROM users WHERE id = ?', [id]);
     }
+  }
+
+  /** Full users row (e.g. password_hash for auth checks). Prefer getUserById when password is not needed. */
+  async getUserFullById(id) {
+    const uid = parseInt(id, 10);
+    if (!Number.isFinite(uid) || uid < 1) return null;
+    if (this.isPostgres) {
+      return await this.queryOne('SELECT * FROM users WHERE id = $1', [uid]);
+    }
+    return await this.queryOne('SELECT * FROM users WHERE id = ?', [uid]);
   }
 
   // Subscription operations
@@ -2021,15 +2237,22 @@ class Database {
     }
   }
   
-  // Get subscriptions expiring soon (for renewal job)
+  /**
+   * App subscriptions that still need manual off-session charging (no Stripe Subscription id).
+   * Includes: (1) due within daysAhead, (2) already past end_date (missed renewal / catch-up).
+   * Excludes rows where stripe_subscription_id is set — Stripe invoices renew those; charging here would double-bill.
+   */
   async getSubscriptionsExpiringSoon(daysAhead = 2) {
     if (this.isPostgres) {
       const result = await this.query(
         `SELECT * FROM subscriptions 
          WHERE status = 'active' 
          AND end_date IS NOT NULL 
-         AND end_date <= CURRENT_TIMESTAMP + INTERVAL '${daysAhead} days'
-         AND end_date > CURRENT_TIMESTAMP
+         AND (stripe_subscription_id IS NULL OR TRIM(stripe_subscription_id::text) = '')
+         AND (
+           (end_date <= CURRENT_TIMESTAMP + INTERVAL '${daysAhead} days' AND end_date > CURRENT_TIMESTAMP)
+           OR (end_date < CURRENT_TIMESTAMP)
+         )
          ORDER BY end_date ASC`,
         []
       );
@@ -2039,12 +2262,36 @@ class Database {
         `SELECT * FROM subscriptions 
          WHERE status = 'active' 
          AND end_date IS NOT NULL 
-         AND datetime(end_date) <= datetime('now', '+${daysAhead} days')
-         AND datetime(end_date) > datetime('now')
+         AND (stripe_subscription_id IS NULL OR TRIM(stripe_subscription_id) = '')
+         AND (
+           (datetime(end_date) <= datetime('now', '+${daysAhead} days') AND datetime(end_date) > datetime('now'))
+           OR (datetime(end_date) < datetime('now'))
+         )
          ORDER BY end_date ASC`,
         []
       );
       return result.rows || [];
+    }
+  }
+
+  /**
+   * Prevent two app containers from running the same renewal job concurrently (duplicate Stripe charges).
+   * PostgreSQL only; SQLite dev returns true.
+   */
+  async acquireRenewalJobLock() {
+    if (!this.isPostgres) return true;
+    const key = 7726358191029473;
+    const r = await this.queryOne('SELECT pg_try_advisory_lock($1::bigint) AS acquired', [key]);
+    return !!(r && r.acquired);
+  }
+
+  async releaseRenewalJobLock() {
+    if (!this.isPostgres) return;
+    const key = 7726358191029473;
+    try {
+      await this.query('SELECT pg_advisory_unlock($1::bigint)', [key]);
+    } catch (_) {
+      /* ignore */
     }
   }
   
@@ -2245,59 +2492,67 @@ class Database {
   
   // Get gym memberships expiring soon (for renewal job) — due in the next N days only
   async getGymMembershipsExpiringSoon(daysAhead = 2) {
+    const d = safeGymDaysAheadInt(daysAhead);
     if (this.isPostgres) {
       const result = await this.query(
         `SELECT * FROM gym_memberships 
          WHERE status = 'active' 
          AND contract_end_date IS NOT NULL 
-         AND contract_end_date <= CURRENT_TIMESTAMP + INTERVAL '${daysAhead} days'
-         AND contract_end_date > CURRENT_TIMESTAMP
-         ORDER BY contract_end_date ASC`,
-        []
-      );
-      return result.rows || [];
-    } else {
-      const result = await this.query(
-        `SELECT * FROM gym_memberships 
-         WHERE status = 'active' 
-         AND contract_end_date IS NOT NULL 
-         AND datetime(contract_end_date) <= datetime('now', '+${daysAhead} days')
-         AND datetime(contract_end_date) > datetime('now')
+         AND contract_end_date::date > (CURRENT_TIMESTAMP AT TIME ZONE 'America/Denver')::date
+         AND contract_end_date::date <= ((CURRENT_TIMESTAMP AT TIME ZONE 'America/Denver')::date + ${d})
          ORDER BY contract_end_date ASC`,
         []
       );
       return result.rows || [];
     }
+    const todayY = denverTodayYmdForDb();
+    const boundaryY = denverBoundaryDateYmd(daysAhead);
+    const result = await this.query(
+      `SELECT * FROM gym_memberships 
+       WHERE status = 'active' 
+       AND contract_end_date IS NOT NULL 
+       AND date(contract_end_date) > date(?)
+       AND date(contract_end_date) <= date(?)
+       ORDER BY contract_end_date ASC`,
+      [todayY, boundaryY]
+    );
+    return result.rows || [];
   }
 
   // Get gym memberships due or already overdue (contract_end_date on or before today + daysAhead).
   // Used by nightly job so we charge both "due soon" and "overdue" (e.g. missed charge).
+  // "Today" is the calendar date in America/Denver (not the DB session timezone).
   async getGymMembershipsDueOrOverdue(daysAhead = 2) {
+    const d = safeGymDaysAheadInt(daysAhead);
     if (this.isPostgres) {
       const result = await this.query(
         `SELECT gm.* FROM gym_memberships gm
          JOIN users u ON u.id = gm.user_id
          WHERE gm.status IN ('active', 'grace_period')
          AND gm.contract_end_date IS NOT NULL
-         AND gm.contract_end_date::date <= (CURRENT_DATE + INTERVAL '${daysAhead} days')
-         AND u.role <> 'tester'
-         ORDER BY gm.contract_end_date ASC`,
-        []
-      );
-      return result.rows || [];
-    } else {
-      const result = await this.query(
-        `SELECT gm.* FROM gym_memberships gm
-         JOIN users u ON u.id = gm.user_id
-         WHERE gm.status IN ('active', 'grace_period')
-         AND gm.contract_end_date IS NOT NULL
-         AND date(gm.contract_end_date) <= date('now', '+${daysAhead} days')
+         AND gm.contract_end_date::date <= ((CURRENT_TIMESTAMP AT TIME ZONE 'America/Denver')::date + ${d})
+         AND (gm.stripe_subscription_id IS NULL OR TRIM(gm.stripe_subscription_id::text) = '')
+         AND (gm.family_group_id IS NULL OR gm.is_primary_member IS TRUE)
          AND u.role <> 'tester'
          ORDER BY gm.contract_end_date ASC`,
         []
       );
       return result.rows || [];
     }
+    const boundaryY = denverBoundaryDateYmd(daysAhead);
+    const result = await this.query(
+      `SELECT gm.* FROM gym_memberships gm
+       JOIN users u ON u.id = gm.user_id
+       WHERE gm.status IN ('active', 'grace_period')
+       AND gm.contract_end_date IS NOT NULL
+       AND date(gm.contract_end_date) <= date(?)
+       AND (gm.stripe_subscription_id IS NULL OR TRIM(gm.stripe_subscription_id) = '')
+       AND (gm.family_group_id IS NULL OR COALESCE(gm.is_primary_member, 0) = 1)
+       AND u.role <> 'tester'
+       ORDER BY gm.contract_end_date ASC`,
+      [boundaryY]
+    );
+    return result.rows || [];
   }
 
   /**
@@ -2305,12 +2560,17 @@ class Database {
    * Excludes known testing accounts.
    */
   async getUpcomingGymTransactionsAdmin(daysAhead = 14) {
+    const d = safeGymDaysAheadInt(daysAhead, 14, 366);
     if (this.isPostgres) {
       const result = await this.query(
         `SELECT gm.id, gm.user_id, gm.membership_type, gm.status, gm.contract_end_date,
                 COALESCE(gm.contract_end_date, gm.end_date) AS due_date_source,
                 gm.monthly_amount_cents,
-                COALESCE(NULLIF(gm.monthly_amount_cents, 0),
+                COALESCE(
+                  (SELECT NULLIF(SUM(gm2.monthly_amount_cents), 0)::bigint
+                   FROM gym_memberships gm2
+                   WHERE gm.family_group_id IS NOT NULL AND gm2.family_group_id = gm.family_group_id),
+                  NULLIF(gm.monthly_amount_cents, 0),
                   CASE gm.membership_type
                     WHEN 'standard' THEN 6500
                     WHEN 'immediate_family_member' THEN 5000
@@ -2332,7 +2592,7 @@ class Database {
            AND COALESCE(gm.membership_type, '') <> 'free_trial'
            AND gm.status <> 'free_trial'
            AND COALESCE(gm.contract_end_date, gm.end_date) IS NOT NULL
-           AND COALESCE(gm.contract_end_date, gm.end_date)::date <= (CURRENT_DATE + INTERVAL '${daysAhead} days')
+           AND COALESCE(gm.contract_end_date, gm.end_date)::date <= ((CURRENT_TIMESTAMP AT TIME ZONE 'America/Denver')::date + ${d})
            AND (gm.family_group_id IS NULL OR gm.is_primary_member IS TRUE)
            AND u.role <> 'tester'
            AND u.email NOT ILIKE 'prod-test%@example.com'
@@ -2343,11 +2603,16 @@ class Database {
       );
       return result.rows || [];
     }
+    const boundaryY = denverBoundaryDateYmd(daysAhead);
     const result = await this.query(
       `SELECT gm.id, gm.user_id, gm.membership_type, gm.status, gm.contract_end_date,
               COALESCE(gm.contract_end_date, gm.end_date) AS due_date_source,
               gm.monthly_amount_cents,
-              COALESCE(NULLIF(gm.monthly_amount_cents, 0),
+              COALESCE(
+                (SELECT NULLIF(SUM(gm2.monthly_amount_cents), 0)
+                 FROM gym_memberships gm2
+                 WHERE gm.family_group_id IS NOT NULL AND gm2.family_group_id = gm.family_group_id),
+                NULLIF(gm.monthly_amount_cents, 0),
                 CASE gm.membership_type
                   WHEN 'standard' THEN 6500
                   WHEN 'immediate_family_member' THEN 5000
@@ -2369,14 +2634,14 @@ class Database {
          AND COALESCE(gm.membership_type, '') <> 'free_trial'
          AND gm.status <> 'free_trial'
          AND COALESCE(gm.contract_end_date, gm.end_date) IS NOT NULL
-         AND date(COALESCE(gm.contract_end_date, gm.end_date)) <= date('now', '+${daysAhead} days')
+         AND date(COALESCE(gm.contract_end_date, gm.end_date)) <= date(?)
          AND (gm.family_group_id IS NULL OR COALESCE(gm.is_primary_member, 0) = 1)
          AND u.role <> 'tester'
          AND u.email NOT LIKE 'prod-test%@example.com'
          AND LOWER(u.email) NOT LIKE 'qa.%@example.com'
          AND LOWER(COALESCE(u.name, '')) NOT LIKE 'test %'
        ORDER BY COALESCE(gm.contract_end_date, gm.end_date) ASC, COALESCE(u.name, u.email) ASC`,
-      []
+      [boundaryY]
     );
     return result.rows || [];
   }
@@ -2463,36 +2728,327 @@ class Database {
   }
 
   /** Admin: all payment rows with user info, newest first (processed history). */
-  async getPastTransactionsAdmin(limit = 2000) {
+  /** @param options.month - optional `YYYY-MM` to restrict to that calendar month (UTC boundaries). */
+  async getPastTransactionsAdmin(limit = 2000, options = {}) {
     const lim = Math.min(5000, Math.max(1, parseInt(limit, 10) || 2000));
+    const ymRaw = options && options.month != null ? String(options.month).trim() : '';
+    const ymMatch = /^(\d{4})-(\d{2})$/.exec(ymRaw);
+    let startIso = null;
+    let endIso = null;
+    if (ymMatch) {
+      const y = parseInt(ymMatch[1], 10);
+      const mo = parseInt(ymMatch[2], 10);
+      if (mo >= 1 && mo <= 12) {
+        const pad = (n) => String(n).padStart(2, '0');
+        const startDay = `${y}-${pad(mo)}-01`;
+        let endY = y;
+        let endM = mo + 1;
+        if (mo === 12) {
+          endY = y + 1;
+          endM = 1;
+        }
+        const endDay = `${endY}-${pad(endM)}-01`;
+        startIso = `${startDay}T00:00:00.000Z`;
+        endIso = `${endDay}T00:00:00.000Z`;
+      }
+    }
+
+    if (this.isPostgres) {
+      const hasMonth = startIso && endIso;
+      const result = await this.query(
+        `SELECT t.id, t.user_id, t.stripe_payment_intent_id, t.amount, t.currency, t.tier, t.status, t.payment_email, t.created_at,
+                t.name, t.user_email
+         FROM transactions t
+         WHERE t.user_role <> 'tester'
+           AND t.user_email NOT ILIKE 'prod-test%@example.com'
+           AND t.user_email NOT ILIKE 'qa.%@example.com'
+           AND COALESCE(t.name, '') NOT ILIKE 'test %'
+           AND (t.status IS NULL OR LOWER(t.status) NOT IN ('refunded', 'partially_refunded'))
+           ${hasMonth ? 'AND t.created_at >= $2::timestamptz AND t.created_at < $3::timestamptz' : ''}
+         ORDER BY t.created_at DESC
+         LIMIT $1`,
+        hasMonth ? [lim, startIso, endIso] : [lim]
+      );
+      return result.rows || [];
+    }
+    const hasMonth = startIso && endIso;
+    const result = await this.query(
+      `SELECT t.id, t.user_id, t.stripe_payment_intent_id, t.amount, t.currency, t.tier, t.status, t.payment_email, t.created_at,
+              t.name, t.user_email
+       FROM transactions t
+       WHERE t.user_role <> 'tester'
+         AND t.user_email NOT LIKE 'prod-test%@example.com'
+         AND LOWER(t.user_email) NOT LIKE 'qa.%@example.com'
+         AND LOWER(COALESCE(t.name, '')) NOT LIKE 'test %'
+         AND (t.status IS NULL OR LOWER(t.status) NOT IN ('refunded', 'partially_refunded'))
+         ${hasMonth ? 'AND t.created_at >= ? AND t.created_at < ?' : ''}
+       ORDER BY t.created_at DESC
+       LIMIT ?`,
+      hasMonth ? [startIso, endIso, lim] : [lim]
+    );
+    return result.rows || [];
+  }
+
+  /**
+   * Same rows as getPastTransactionsAdmin but `created_at` must fall in the given calendar month in America/Denver.
+   * @param {string} ym - `YYYY-MM`
+   */
+  async getPastTransactionsAdminDenverMonth(ym) {
+    const ymRaw = ym != null ? String(ym).trim() : '';
+    const ymMatch = /^(\d{4})-(\d{2})$/.exec(ymRaw);
+    if (!ymMatch) return [];
+    const y = parseInt(ymMatch[1], 10);
+    const mo = parseInt(ymMatch[2], 10);
+    if (mo < 1 || mo > 12) return [];
+    const { DateTime } = require('luxon');
+    const zone = 'America/Denver';
+    const start = DateTime.fromObject({ year: y, month: mo, day: 1 }, { zone }).startOf('day');
+    const end = start.plus({ months: 1 });
+    const startIso = start.toUTC().toISO();
+    const endIso = end.toUTC().toISO();
+    const lim = 5000;
+
     if (this.isPostgres) {
       const result = await this.query(
-        `SELECT p.id, p.user_id, p.stripe_payment_intent_id, p.amount, p.currency, p.tier, p.status, p.email AS payment_email, p.created_at,
-                u.name, u.email AS user_email
-         FROM payments p
-         JOIN users u ON u.id = p.user_id
-         WHERE u.role <> 'tester'
-           AND u.email NOT ILIKE 'prod-test%@example.com'
-           AND u.email NOT ILIKE 'qa.%@example.com'
-           AND COALESCE(u.name, '') NOT ILIKE 'test %'
-         ORDER BY p.created_at DESC
-         LIMIT $1`,
-        [lim]
+        `SELECT t.id, t.user_id, t.stripe_payment_intent_id, t.amount, t.currency, t.tier, t.status, t.payment_email, t.created_at,
+                t.name, t.user_email
+         FROM transactions t
+         WHERE t.user_role <> 'tester'
+           AND t.user_email NOT ILIKE 'prod-test%@example.com'
+           AND t.user_email NOT ILIKE 'qa.%@example.com'
+           AND COALESCE(t.name, '') NOT ILIKE 'test %'
+           AND (t.status IS NULL OR LOWER(t.status) NOT IN ('refunded', 'partially_refunded'))
+           AND t.created_at >= $1::timestamptz AND t.created_at < $2::timestamptz
+         ORDER BY t.created_at DESC
+         LIMIT $3`,
+        [startIso, endIso, lim]
       );
       return result.rows || [];
     }
     const result = await this.query(
-      `SELECT p.id, p.user_id, p.stripe_payment_intent_id, p.amount, p.currency, p.tier, p.status, p.email AS payment_email, p.created_at,
-              u.name, u.email AS user_email
-       FROM payments p
-       JOIN users u ON u.id = p.user_id
+      `SELECT t.id, t.user_id, t.stripe_payment_intent_id, t.amount, t.currency, t.tier, t.status, t.payment_email, t.created_at,
+              t.name, t.user_email
+       FROM transactions t
+       WHERE t.user_role <> 'tester'
+         AND t.user_email NOT LIKE 'prod-test%@example.com'
+         AND LOWER(t.user_email) NOT LIKE 'qa.%@example.com'
+         AND LOWER(COALESCE(t.name, '')) NOT LIKE 'test %'
+         AND (t.status IS NULL OR LOWER(t.status) NOT IN ('refunded', 'partially_refunded'))
+         AND t.created_at >= ? AND t.created_at < ?
+       ORDER BY t.created_at DESC
+       LIMIT ?`,
+      [startIso, endIso, lim]
+    );
+    return result.rows || [];
+  }
+
+  /**
+   * All users visible in admin transaction reporting (same exclusions as `transactions` month queries).
+   * Used to show a per-member April snapshot alongside payment rows.
+   */
+  async getAdminUsersForTransactionsList() {
+    if (this.isPostgres) {
+      const result = await this.query(
+        `SELECT u.id, u.name, u.email, u.role, u.created_at
+         FROM users u
+         WHERE u.role <> 'tester'
+           AND u.email NOT ILIKE 'prod-test%@example.com'
+           AND u.email NOT ILIKE 'qa.%@example.com'
+           AND COALESCE(u.name, '') NOT ILIKE 'test %'
+         ORDER BY LOWER(u.email) ASC`,
+        []
+      );
+      return result.rows || [];
+    }
+    const result = await this.query(
+      `SELECT u.id, u.name, u.email, u.role, u.created_at
+       FROM users u
        WHERE u.role <> 'tester'
          AND u.email NOT LIKE 'prod-test%@example.com'
          AND LOWER(u.email) NOT LIKE 'qa.%@example.com'
          AND LOWER(COALESCE(u.name, '')) NOT LIKE 'test %'
-       ORDER BY p.created_at DESC
-       LIMIT ?`,
-      [lim]
+       ORDER BY LOWER(u.email) ASC`,
+      []
+    );
+    return result.rows || [];
+  }
+
+  /**
+   * Gym rows for admin transaction month view: billing-primary lines only, wide time window around
+   * a Denver calendar month (then caller filters with subscriptionEndToYmdDenver === ym).
+   * Includes paused (unlike getUpcomingGymTransactionsAdmin) so April dues are not hidden while paused.
+   */
+  async getAdminGymScheduledInDenverMonthWindow(ym) {
+    const ymMatch = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+    if (!ymMatch) return [];
+    const y = parseInt(ymMatch[1], 10);
+    const mo = parseInt(ymMatch[2], 10);
+    if (mo < 1 || mo > 12) return [];
+    const { DateTime } = require('luxon');
+    const zone = 'America/Denver';
+    const start = DateTime.fromObject({ year: y, month: mo, day: 1 }, { zone }).startOf('day');
+    const next = start.plus({ months: 1 });
+    const fromIso = start.minus({ days: 14 }).toUTC().toISO();
+    const toIso = next.plus({ days: 14 }).toUTC().toISO();
+
+    const selectGym = `
+        SELECT gm.id, gm.user_id, gm.membership_type, gm.status, gm.contract_end_date,
+                COALESCE(gm.contract_end_date, gm.end_date) AS due_date_source,
+                gm.monthly_amount_cents,
+                COALESCE(
+                  (SELECT NULLIF(SUM(gm2.monthly_amount_cents), 0)::bigint
+                   FROM gym_memberships gm2
+                   WHERE gm.family_group_id IS NOT NULL AND gm2.family_group_id = gm.family_group_id),
+                  NULLIF(gm.monthly_amount_cents, 0),
+                  CASE gm.membership_type
+                    WHEN 'standard' THEN 6500
+                    WHEN 'immediate_family_member' THEN 5000
+                    WHEN 'expecting_or_recovering_mother' THEN 3000
+                    WHEN 'entire_family' THEN 18500
+                    ELSE NULL
+                  END
+                ) AS amount_due_cents,
+                gm.payment_method_id, gm.stripe_customer_id,
+                (SELECT MAX(p.created_at)
+                 FROM payments p
+                 WHERE p.user_id = gm.user_id
+                   AND p.tier IN ('gym_membership', 'gym_membership_late_fee')
+                   AND p.status = 'succeeded') AS last_success_gym_payment_at,
+                u.name, u.email`;
+
+    if (this.isPostgres) {
+      const result = await this.query(
+        `${selectGym}
+         FROM gym_memberships gm
+         JOIN users u ON u.id = gm.user_id
+         WHERE gm.status IN ('active', 'grace_period', 'inactive', 'paused')
+           AND COALESCE(gm.membership_type, '') <> 'free_trial'
+           AND gm.status <> 'free_trial'
+           AND COALESCE(gm.contract_end_date, gm.end_date) IS NOT NULL
+           AND COALESCE(gm.contract_end_date, gm.end_date) >= $1::timestamptz
+           AND COALESCE(gm.contract_end_date, gm.end_date) < $2::timestamptz
+           AND (gm.family_group_id IS NULL OR gm.is_primary_member IS TRUE)
+           AND u.role <> 'tester'
+           AND u.email NOT ILIKE 'prod-test%@example.com'
+           AND u.email NOT ILIKE 'qa.%@example.com'
+           AND COALESCE(u.name, '') NOT ILIKE 'test %'
+         ORDER BY COALESCE(gm.contract_end_date, gm.end_date) ASC, COALESCE(u.name, u.email) ASC`,
+        [fromIso, toIso]
+      );
+      return result.rows || [];
+    }
+    const result = await this.query(
+      `${selectGym.replace(/::bigint/g, '')}
+       FROM gym_memberships gm
+       JOIN users u ON u.id = gm.user_id
+       WHERE gm.status IN ('active', 'grace_period', 'inactive', 'paused')
+         AND COALESCE(gm.membership_type, '') <> 'free_trial'
+         AND gm.status <> 'free_trial'
+         AND COALESCE(gm.contract_end_date, gm.end_date) IS NOT NULL
+         AND datetime(COALESCE(gm.contract_end_date, gm.end_date)) >= datetime(?)
+         AND datetime(COALESCE(gm.contract_end_date, gm.end_date)) < datetime(?)
+         AND (gm.family_group_id IS NULL OR COALESCE(gm.is_primary_member, 0) = 1)
+         AND u.role <> 'tester'
+         AND u.email NOT LIKE 'prod-test%@example.com'
+         AND LOWER(u.email) NOT LIKE 'qa.%@example.com'
+         AND LOWER(COALESCE(u.name, '')) NOT LIKE 'test %'
+       ORDER BY COALESCE(gm.contract_end_date, gm.end_date) ASC, COALESCE(u.name, u.email) ASC`,
+      [fromIso, toIso]
+    );
+    return result.rows || [];
+  }
+
+  /**
+   * App paid-tier subscription rows for admin month view: same as getUpcomingAppSubscriptionTransactionsAdmin
+   * but due window is a padded range around Denver month (caller filters end_date to ym in JS).
+   */
+  async getAdminAppScheduledInDenverMonthWindow(ym) {
+    const ymMatch = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+    if (!ymMatch) return [];
+    const y = parseInt(ymMatch[1], 10);
+    const mo = parseInt(ymMatch[2], 10);
+    if (mo < 1 || mo > 12) return [];
+    const { DateTime } = require('luxon');
+    const zone = 'America/Denver';
+    const start = DateTime.fromObject({ year: y, month: mo, day: 1 }, { zone }).startOf('day');
+    const next = start.plus({ months: 1 });
+    const fromIso = start.minus({ days: 14 }).toUTC().toISO();
+    const toIso = next.plus({ days: 14 }).toUTC().toISO();
+
+    const paidTiers = "('tier_two', 'tier_three', 'tier_four', 'daily', 'weekly', 'monthly')";
+    const subOrderPg = `
+      ORDER BY
+        CASE s2.status WHEN 'active' THEN 0 WHEN 'grace_period' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END,
+        s2.end_date DESC NULLS LAST,
+        s2.id DESC
+      LIMIT 1`;
+    const subOrderSqlite = `
+      ORDER BY
+        CASE s2.status WHEN 'active' THEN 0 WHEN 'grace_period' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END,
+        s2.end_date DESC,
+        s2.id DESC
+      LIMIT 1`;
+
+    if (this.isPostgres) {
+      const result = await this.query(
+        `SELECT s.id, s.user_id, s.tier, s.status, s.end_date,
+                s.payment_method_id, s.stripe_customer_id,
+                u.name, u.email,
+                CASE COALESCE(s.tier, '')
+                  WHEN 'tier_two' THEN 700 WHEN 'daily' THEN 700
+                  WHEN 'tier_three' THEN 1200 WHEN 'weekly' THEN 1200
+                  WHEN 'tier_four' THEN 1800 WHEN 'monthly' THEN 1800
+                  ELSE 0
+                END AS amount_due_cents
+         FROM subscriptions s
+         JOIN users u ON u.id = s.user_id
+         WHERE s.tier IN ${paidTiers}
+           AND s.status IN ('active', 'grace_period')
+           AND s.end_date IS NOT NULL
+           AND s.end_date >= $1::timestamptz
+           AND s.end_date < $2::timestamptz
+           AND s.id = (
+             SELECT s2.id FROM subscriptions s2
+             WHERE s2.user_id = s.user_id AND s2.tier IN ${paidTiers}
+             ${subOrderPg}
+           )
+           AND u.role <> 'tester'
+           AND u.email NOT ILIKE 'prod-test%@example.com'
+           AND u.email NOT ILIKE 'qa.%@example.com'
+           AND COALESCE(u.name, '') NOT ILIKE 'test %'
+         ORDER BY s.end_date ASC, COALESCE(u.name, u.email) ASC`,
+        [fromIso, toIso]
+      );
+      return result.rows || [];
+    }
+    const result = await this.query(
+      `SELECT s.id, s.user_id, s.tier, s.status, s.end_date,
+              s.payment_method_id, s.stripe_customer_id,
+              u.name, u.email,
+              CASE COALESCE(s.tier, '')
+                WHEN 'tier_two' THEN 700 WHEN 'daily' THEN 700
+                WHEN 'tier_three' THEN 1200 WHEN 'weekly' THEN 1200
+                WHEN 'tier_four' THEN 1800 WHEN 'monthly' THEN 1800
+                ELSE 0
+              END AS amount_due_cents
+       FROM subscriptions s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.tier IN ('tier_two', 'tier_three', 'tier_four', 'daily', 'weekly', 'monthly')
+         AND s.status IN ('active', 'grace_period')
+         AND s.end_date IS NOT NULL
+         AND datetime(s.end_date) >= datetime(?)
+         AND datetime(s.end_date) < datetime(?)
+         AND s.id = (
+           SELECT s2.id FROM subscriptions s2
+           WHERE s2.user_id = s.user_id AND s2.tier IN ('tier_two', 'tier_three', 'tier_four', 'daily', 'weekly', 'monthly')
+           ${subOrderSqlite}
+         )
+         AND u.role <> 'tester'
+         AND u.email NOT LIKE 'prod-test%@example.com'
+         AND LOWER(u.email) NOT LIKE 'qa.%@example.com'
+         AND LOWER(COALESCE(u.name, '')) NOT LIKE 'test %'
+       ORDER BY s.end_date ASC, COALESCE(u.name, u.email) ASC`,
+      [fromIso, toIso]
     );
     return result.rows || [];
   }
@@ -2506,6 +3062,7 @@ class Database {
          WHERE gm.status = 'paused'
          AND gm.paused_until IS NOT NULL
          AND gm.paused_until::date <= CURRENT_DATE
+         AND (gm.family_group_id IS NULL OR gm.is_primary_member IS TRUE)
          AND u.role <> 'tester'
          ORDER BY gm.paused_until ASC`,
         []
@@ -2518,12 +3075,817 @@ class Database {
          WHERE gm.status = 'paused'
          AND gm.paused_until IS NOT NULL
          AND date(gm.paused_until) <= date('now')
+         AND (gm.family_group_id IS NULL OR COALESCE(gm.is_primary_member, 0) = 1)
          AND u.role <> 'tester'
          ORDER BY gm.paused_until ASC`,
         []
       );
       return result.rows || [];
     }
+  }
+
+  /** Sum of per-line monthly_amount_cents for one household (Stripe charges this total on the primary). */
+  async getSumMonthlyAmountCentsForFamilyGroup(familyGroupId) {
+    if (familyGroupId == null || String(familyGroupId).trim() === '') return 0;
+    const sql = this.isPostgres
+      ? `SELECT COALESCE(SUM(monthly_amount_cents), 0)::bigint AS t FROM gym_memberships WHERE family_group_id = $1`
+      : `SELECT COALESCE(SUM(monthly_amount_cents), 0) AS t FROM gym_memberships WHERE family_group_id = ?`;
+    const r = await this.query(sql, [familyGroupId]);
+    const row = (r.rows && r.rows[0]) || r[0];
+    const t = row && row.t != null ? parseInt(row.t, 10) : 0;
+    return Number.isFinite(t) ? t : 0;
+  }
+
+  /**
+   * Maintenance: for each household (family_group_id) with 2+ members, set monthly_amount_cents on each row
+   * to that line's share of list price minus discount split proportionally (same as confirm-migration).
+   * Safe to run repeatedly.
+   */
+  async repairPrimaryHouseholdMonthlyAmounts(options = {}) {
+    const primaryEmailNorm =
+      options.primaryEmail != null && String(options.primaryEmail).trim() !== ''
+        ? String(options.primaryEmail).trim().toLowerCase()
+        : null;
+    const {
+      basePriceCentsForMembershipType,
+      allocateProportionalDiscountNets,
+      membershipRules
+    } = require('./lib/household-monthly-cents');
+    const rules = membershipRules;
+    const isPg = this.isPostgres;
+    const primariesParams = [];
+    let primariesSql = isPg
+      ? `SELECT gm.id AS gm_id, gm.family_group_id, u.email AS primary_email
+         FROM gym_memberships gm
+         JOIN users u ON u.id = gm.user_id
+         WHERE gm.is_primary_member IS TRUE
+           AND gm.family_group_id IS NOT NULL`
+      : `SELECT gm.id AS gm_id, gm.family_group_id, u.email AS primary_email
+         FROM gym_memberships gm
+         JOIN users u ON u.id = gm.user_id
+         WHERE COALESCE(gm.is_primary_member, 0) = 1
+           AND gm.family_group_id IS NOT NULL`;
+
+    if (primaryEmailNorm) {
+      if (isPg) {
+        primariesSql += ` AND LOWER(TRIM(u.email)) = $1`;
+      } else {
+        primariesSql += ` AND LOWER(TRIM(u.email)) = ?`;
+      }
+      primariesParams.push(primaryEmailNorm);
+    }
+
+    const primaries = await this.query(primariesSql, primariesParams);
+    const rows = primaries.rows || primaries || [];
+    const updates = [];
+
+    const perUserBaseOv =
+      options.perUserBaseCentsOverride && typeof options.perUserBaseCentsOverride === 'object'
+        ? options.perUserBaseCentsOverride
+        : null;
+
+    for (const p of rows) {
+      const groupSql = isPg
+        ? `SELECT gm.id, gm.membership_type, gm.user_id, gm.is_primary_member,
+                  LOWER(TRIM(u.email)) AS user_email
+           FROM gym_memberships gm
+           JOIN users u ON u.id = gm.user_id
+           WHERE gm.family_group_id = $1 ORDER BY gm.id`
+        : `SELECT gm.id, gm.membership_type, gm.user_id, gm.is_primary_member,
+                  LOWER(TRIM(u.email)) AS user_email
+           FROM gym_memberships gm
+           JOIN users u ON u.id = gm.user_id
+           WHERE gm.family_group_id = ? ORDER BY gm.id`;
+      const gr = await this.query(groupSql, [p.family_group_id]);
+      const groupMembers = gr.rows || gr || [];
+      if (groupMembers.length < 2) continue;
+
+      const sorted = [...groupMembers].sort((a, b) => {
+        const ap = a.is_primary_member === true || a.is_primary_member === 1;
+        const bp = b.is_primary_member === true || b.is_primary_member === 1;
+        if (ap && !bp) return -1;
+        if (!ap && bp) return 1;
+        return (a.id || 0) - (b.id || 0);
+      });
+
+      const aamSql = isPg
+        ? `SELECT discount_1_cents, discount_2_cents, discount_3_cents, household_members FROM admin_added_members
+           WHERE LOWER(TRIM(primary_email)) = LOWER(TRIM($1)) ORDER BY id DESC LIMIT 1`
+        : `SELECT discount_1_cents, discount_2_cents, discount_3_cents, household_members FROM admin_added_members
+           WHERE LOWER(TRIM(primary_email)) = LOWER(TRIM(?)) ORDER BY id DESC LIMIT 1`;
+      const aam = await this.queryOne(aamSql, [p.primary_email]);
+
+      let household = [];
+      if (aam && aam.household_members) {
+        try {
+          let raw = aam.household_members;
+          if (typeof raw === 'string') raw = JSON.parse(raw || '[]');
+          household = Array.isArray(raw) ? raw : [];
+        } catch (_) {
+          household = [];
+        }
+      }
+
+      const baseForRow = (row) => {
+        const uid = row.user_id;
+        if (perUserBaseOv && perUserBaseOv[uid] != null) {
+          const c = parseInt(perUserBaseOv[uid], 10);
+          if (Number.isFinite(c) && c > 0) return c;
+        }
+        const em = String(row.user_email || '').trim().toLowerCase();
+        if (em && household.length) {
+          const h = household.find((x) => String(x.email || '').trim().toLowerCase() === em);
+          if (h && h.list_price_cents != null) {
+            const c = parseInt(h.list_price_cents, 10);
+            if (Number.isFinite(c) && c > 0) return c;
+          }
+        }
+        return basePriceCentsForMembershipType(row.membership_type, rules);
+      };
+
+      const bases = sorted.map((row) => baseForRow(row));
+
+      let D;
+      if (
+        options.discountTotalCentsOverride != null &&
+        String(options.discountTotalCentsOverride).trim() !== '' &&
+        Number.isFinite(Number(options.discountTotalCentsOverride))
+      ) {
+        D = Math.max(0, Math.round(Number(options.discountTotalCentsOverride)));
+      } else {
+        const d1 = aam ? Math.abs(parseInt(aam.discount_1_cents, 10) || 0) : 0;
+        const d2 = aam ? Math.abs(parseInt(aam.discount_2_cents, 10) || 0) : 0;
+        const d3 = aam ? Math.abs(parseInt(aam.discount_3_cents, 10) || 0) : 0;
+        D = d1 + d2 + d3;
+      }
+      const nets = allocateProportionalDiscountNets(bases, D);
+
+      for (let i = 0; i < sorted.length; i++) {
+        await this.query(
+          isPg
+            ? `UPDATE gym_memberships SET monthly_amount_cents = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`
+            : `UPDATE gym_memberships SET monthly_amount_cents = ?, updated_at = datetime('now') WHERE id = ?`,
+          [nets[i], sorted[i].id]
+        );
+      }
+      updates.push({
+        family_group_id: p.family_group_id,
+        primary_email: p.primary_email,
+        rows: sorted.map((r, i) => ({ id: r.id, monthly_amount_cents: nets[i] }))
+      });
+    }
+
+    return { updated: updates.length, updates };
+  }
+
+  /**
+   * Set contract_start_date, contract_end_date, start_date for all gym_memberships sharing the primary's family_group_id.
+   * If the primary has no family_group_id, updates only their gym row.
+   * Updates admin_added_members.membership_start_date for the primary email when a row exists.
+   */
+  async setHouseholdGymAnchorDates(primaryEmail, contractStartYmd, contractEndYmd) {
+    const pe = String(primaryEmail || '').trim().toLowerCase();
+    const startYmd = String(contractStartYmd || '').trim();
+    const endYmd = String(contractEndYmd || '').trim();
+    if (!pe || !/^\d{4}-\d{2}-\d{2}$/.test(startYmd) || !/^\d{4}-\d{2}-\d{2}$/.test(endYmd)) {
+      throw new Error('Valid primary email and YYYY-MM-DD contract dates are required');
+    }
+
+    const user = await this.getUserByEmail(pe);
+    if (!user) throw new Error('User not found for that email');
+
+    const isPg = this.isPostgres;
+    const primarySql = isPg
+      ? `SELECT * FROM gym_memberships WHERE user_id = $1
+         AND is_primary_member IS TRUE
+         ORDER BY
+           CASE WHEN status IN ('active', 'grace_period') THEN 0 ELSE 1 END,
+           COALESCE(updated_at, created_at) DESC,
+           id DESC
+         LIMIT 1`
+      : `SELECT * FROM gym_memberships WHERE user_id = ?
+         AND COALESCE(is_primary_member, 0) = 1
+         ORDER BY
+           CASE WHEN status IN ('active', 'grace_period') THEN 0 ELSE 1 END,
+           COALESCE(updated_at, created_at) DESC,
+           id DESC
+         LIMIT 1`;
+    let primaryGm = await this.queryOne(primarySql, [user.id]);
+    let resolvedPrimaryEmail = pe;
+    if (!primaryGm) {
+      // Convenience fallback: if email belongs to a dependent/non-primary member,
+      // resolve the household primary via family_group_id and apply dates there.
+      const latestMembership = await this.queryOne(
+        isPg
+          ? `SELECT * FROM gym_memberships
+             WHERE user_id = $1
+             ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+             LIMIT 1`
+          : `SELECT * FROM gym_memberships
+             WHERE user_id = ?
+             ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+             LIMIT 1`,
+        [user.id]
+      );
+      const fg =
+        latestMembership &&
+        latestMembership.family_group_id != null &&
+        String(latestMembership.family_group_id).trim() !== ''
+          ? latestMembership.family_group_id
+          : null;
+      if (fg != null) {
+        const resolved = await this.queryOne(
+          isPg
+            ? `SELECT gm.*, u.email AS primary_email
+               FROM gym_memberships gm
+               JOIN users u ON u.id = gm.user_id
+               WHERE gm.family_group_id = $1
+                 AND gm.is_primary_member IS TRUE
+               ORDER BY
+                 CASE WHEN gm.status IN ('active', 'grace_period') THEN 0 ELSE 1 END,
+                 COALESCE(gm.updated_at, gm.created_at) DESC,
+                 gm.id DESC
+               LIMIT 1`
+            : `SELECT gm.*, u.email AS primary_email
+               FROM gym_memberships gm
+               JOIN users u ON u.id = gm.user_id
+               WHERE gm.family_group_id = ?
+                 AND COALESCE(gm.is_primary_member, 0) = 1
+               ORDER BY
+                 CASE WHEN gm.status IN ('active', 'grace_period') THEN 0 ELSE 1 END,
+                 COALESCE(gm.updated_at, gm.created_at) DESC,
+                 gm.id DESC
+               LIMIT 1`,
+          [fg]
+        );
+        if (resolved) {
+          primaryGm = resolved;
+          resolvedPrimaryEmail = String(resolved.primary_email || pe).trim().toLowerCase();
+        }
+      }
+      // Final fallback: if this user has any gym membership row, use it directly.
+      // This avoids blocking admin date fixes when data is legacy/non-primary.
+      if (!primaryGm && latestMembership) {
+        primaryGm = latestMembership;
+      }
+    }
+    if (!primaryGm) throw new Error('No primary gym membership found for that email');
+
+    const fg =
+      primaryGm.family_group_id != null && String(primaryGm.family_group_id).trim() !== ''
+        ? primaryGm.family_group_id
+        : null;
+
+    let toUpdate;
+    if (fg) {
+      const r = await this.query(
+        isPg
+          ? `SELECT gm.id, gm.user_id, u.email, gm.is_primary_member
+             FROM gym_memberships gm
+             JOIN users u ON u.id = gm.user_id
+             WHERE gm.family_group_id = $1
+             ORDER BY gm.id`
+          : `SELECT gm.id, gm.user_id, u.email, gm.is_primary_member
+             FROM gym_memberships gm
+             JOIN users u ON u.id = gm.user_id
+             WHERE gm.family_group_id = ?
+             ORDER BY gm.id`,
+        [fg]
+      );
+      toUpdate = r.rows || [];
+    } else {
+      toUpdate = [{ id: primaryGm.id, user_id: user.id, email: pe }];
+    }
+
+    for (const row of toUpdate) {
+      await this.query(
+        isPg
+          ? `UPDATE gym_memberships
+             SET contract_start_date = $1,
+                 contract_end_date = $2,
+                 start_date = $3,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $4`
+          : `UPDATE gym_memberships
+             SET contract_start_date = ?,
+                 contract_end_date = ?,
+                 start_date = ?,
+                 updated_at = datetime('now')
+             WHERE id = ?`,
+        [startYmd, endYmd, startYmd, row.id]
+      );
+    }
+
+    const aam = await this.queryOne(
+      isPg
+        ? `SELECT id FROM admin_added_members
+           WHERE LOWER(TRIM(primary_email)) = $1
+           ORDER BY id DESC LIMIT 1`
+        : `SELECT id FROM admin_added_members
+           WHERE LOWER(TRIM(primary_email)) = ?
+           ORDER BY id DESC LIMIT 1`,
+      [resolvedPrimaryEmail]
+    );
+    let adminAddedUpdated = false;
+    if (aam && aam.id) {
+      await this.query(
+        isPg
+          ? `UPDATE admin_added_members SET membership_start_date = $1 WHERE id = $2`
+          : `UPDATE admin_added_members SET membership_start_date = ? WHERE id = ?`,
+        [startYmd, aam.id]
+      );
+      adminAddedUpdated = true;
+    }
+
+    return {
+      family_group_id: fg,
+      updated_membership_ids: toUpdate.map((r) => r.id),
+      admin_added_updated: adminAddedUpdated
+    };
+  }
+
+  /**
+   * Link a user as immediate family on a primary's account (shared family_group_id; billing on primary).
+   * If memberEmail is omitted/blank, creates a new users row with a unique placeholder @no-email.stoic-fit.local address
+   * (display name defaults to "Immediate family member" when none given).
+   * Creates or reuses family_groups; upserts dependent gym_membership; merges admin_added_members.household_members when present;
+   * runs repairPrimaryHouseholdMonthlyAmounts for proportional split.
+   */
+  async linkImmediateFamilyMemberToPrimary({
+    primaryEmail,
+    memberEmail,
+    memberName,
+    discountTotalCents,
+    discountName,
+    memberListPriceCents
+  }) {
+    const crypto = require('crypto');
+    const pe = String(primaryEmail || '').trim().toLowerCase();
+    let me = String(memberEmail || '').trim().toLowerCase();
+    let name = (memberName || '').trim() || null;
+    let placeholderEmailGenerated = false;
+    if (!pe) throw new Error('Primary email is required');
+    if (!me) {
+      me = `ifamily-${crypto.randomBytes(8).toString('hex')}@no-email.stoic-fit.local`;
+      placeholderEmailGenerated = true;
+      if (!name) name = 'Immediate family member';
+    }
+    if (pe === me) throw new Error('Member email must differ from primary');
+
+    const primaryUser = await this.getUserByEmail(pe);
+    if (!primaryUser) throw new Error('Primary user not found for that email');
+
+    let memberUser = await this.getUserByEmail(me);
+    if (!memberUser) {
+      memberUser = await this.createUser(me, crypto.randomBytes(16).toString('hex'), name);
+    } else if (name && (!memberUser.name || memberUser.name.trim() === '')) {
+      await this.updateUserName(memberUser.id, name);
+    }
+
+    const isPg = this.isPostgres;
+    const primarySql = isPg
+      ? `SELECT * FROM gym_memberships WHERE user_id = $1
+         AND is_primary_member IS TRUE
+         ORDER BY
+           CASE WHEN status IN ('active', 'grace_period') THEN 0 ELSE 1 END,
+           COALESCE(updated_at, created_at) DESC,
+           id DESC
+         LIMIT 1`
+      : `SELECT * FROM gym_memberships WHERE user_id = ?
+         AND COALESCE(is_primary_member, 0) = 1
+         ORDER BY
+           CASE WHEN status IN ('active', 'grace_period') THEN 0 ELSE 1 END,
+           COALESCE(updated_at, created_at) DESC,
+           id DESC
+         LIMIT 1`;
+    let primaryGm = await this.queryOne(primarySql, [primaryUser.id]);
+    if (!primaryGm) {
+      // Admin shortcut: if this primary exists in admin_added_members (pending or confirmed),
+      // bootstrap a primary gym_memberships record so immediate-family linking can proceed.
+      const adminAdded = await this.queryOne(
+        isPg
+          ? `SELECT * FROM admin_added_members
+             WHERE LOWER(TRIM(primary_email)) = LOWER(TRIM($1))
+             ORDER BY id DESC
+             LIMIT 1`
+          : `SELECT * FROM admin_added_members
+             WHERE LOWER(TRIM(primary_email)) = LOWER(TRIM(?))
+             ORDER BY id DESC
+             LIMIT 1`,
+        [pe]
+      );
+      if (adminAdded) {
+        const rawStart = adminAdded.membership_start_date;
+        let startYmd = null;
+        if (rawStart instanceof Date && !Number.isNaN(rawStart.getTime())) {
+          startYmd = rawStart.toISOString().slice(0, 10);
+        } else if (rawStart != null) {
+          const s = String(rawStart).trim().split('T')[0].split(/\s/)[0];
+          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) startYmd = s;
+        }
+        if (!startYmd) {
+          startYmd = new Date().toISOString().slice(0, 10);
+        }
+
+        const pendingType = String(adminAdded.membership_type || '').trim().toLowerCase();
+        const primaryType = pendingType && pendingType !== 'immediate_family_member'
+          ? pendingType
+          : 'standard';
+        const monthlyCents =
+          adminAdded.monthly_amount_cents != null && Number.isFinite(Number(adminAdded.monthly_amount_cents))
+            ? Math.max(0, parseInt(adminAdded.monthly_amount_cents, 10))
+            : null;
+        const stripeCustomerId =
+          primaryUser.stripe_customer_id && String(primaryUser.stripe_customer_id).trim() !== ''
+            ? String(primaryUser.stripe_customer_id).trim()
+            : null;
+
+        let newFamilyGroupId = null;
+        if (isPg) {
+          const fg = await this.query(
+            'INSERT INTO family_groups (primary_user_id) VALUES ($1) RETURNING id',
+            [primaryUser.id]
+          );
+          newFamilyGroupId = fg.rows?.[0]?.id || null;
+        } else {
+          await this.query('INSERT INTO family_groups (primary_user_id) VALUES (?)', [primaryUser.id]);
+          const fg = await this.queryOne(
+            'SELECT id FROM family_groups WHERE primary_user_id = ? ORDER BY id DESC LIMIT 1',
+            [primaryUser.id]
+          );
+          newFamilyGroupId = fg?.id || null;
+        }
+
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let householdId = 'HH-';
+        for (let i = 0; i < 6; i++) {
+          householdId += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+
+        await this.query(
+          isPg
+            ? `INSERT INTO gym_memberships
+               (user_id, membership_type, household_id, family_group_id, is_primary_member, discount_group_id, status, contract_start_date, contract_end_date, contract_months, stripe_customer_id, monthly_amount_cents, created_at)
+               VALUES ($1, $2, $3, $4, TRUE, $5, 'active', $6, $7, 12, $8, $9, CURRENT_TIMESTAMP)`
+            : `INSERT INTO gym_memberships
+               (user_id, membership_type, household_id, family_group_id, is_primary_member, discount_group_id, status, contract_start_date, contract_end_date, contract_months, stripe_customer_id, monthly_amount_cents, created_at)
+               VALUES (?, ?, ?, ?, 1, ?, 'active', ?, ?, 12, ?, ?, datetime('now'))`,
+          [
+            primaryUser.id,
+            primaryType,
+            householdId,
+            newFamilyGroupId,
+            adminAdded.discount_group_id || null,
+            startYmd,
+            startYmd,
+            stripeCustomerId,
+            monthlyCents
+          ]
+        );
+
+        primaryGm = await this.queryOne(primarySql, [primaryUser.id]);
+      } else {
+        // Last-resort admin fallback: bootstrap a minimal standard primary row from users table
+        // when there is no gym row and no admin_added_members history for this email.
+        const startYmd = new Date().toISOString().slice(0, 10);
+        let newFamilyGroupId = null;
+        if (isPg) {
+          const fg = await this.query(
+            'INSERT INTO family_groups (primary_user_id) VALUES ($1) RETURNING id',
+            [primaryUser.id]
+          );
+          newFamilyGroupId = fg.rows?.[0]?.id || null;
+        } else {
+          await this.query('INSERT INTO family_groups (primary_user_id) VALUES (?)', [primaryUser.id]);
+          const fg = await this.queryOne(
+            'SELECT id FROM family_groups WHERE primary_user_id = ? ORDER BY id DESC LIMIT 1',
+            [primaryUser.id]
+          );
+          newFamilyGroupId = fg?.id || null;
+        }
+
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let householdId = 'HH-';
+        for (let i = 0; i < 6; i++) {
+          householdId += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+
+        const stripeCustomerId =
+          primaryUser.stripe_customer_id && String(primaryUser.stripe_customer_id).trim() !== ''
+            ? String(primaryUser.stripe_customer_id).trim()
+            : null;
+
+        await this.query(
+          isPg
+            ? `INSERT INTO gym_memberships
+               (user_id, membership_type, household_id, family_group_id, is_primary_member, discount_group_id, status, contract_start_date, contract_end_date, contract_months, stripe_customer_id, monthly_amount_cents, created_at)
+               VALUES ($1, 'standard', $2, $3, TRUE, NULL, 'active', $4, $4, 12, $5, 6500, CURRENT_TIMESTAMP)`
+            : `INSERT INTO gym_memberships
+               (user_id, membership_type, household_id, family_group_id, is_primary_member, discount_group_id, status, contract_start_date, contract_end_date, contract_months, stripe_customer_id, monthly_amount_cents, created_at)
+               VALUES (?, 'standard', ?, ?, 1, NULL, 'active', ?, ?, 12, ?, 6500, datetime('now'))`,
+          [primaryUser.id, householdId, newFamilyGroupId, startYmd, stripeCustomerId]
+        );
+
+        primaryGm = await this.queryOne(primarySql, [primaryUser.id]);
+      }
+    }
+    if (!primaryGm) {
+      const latestAnySql = isPg
+        ? `SELECT id, membership_type, status, is_primary_member, family_group_id
+           FROM gym_memberships
+           WHERE user_id = $1
+           ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+           LIMIT 1`
+        : `SELECT id, membership_type, status, is_primary_member, family_group_id
+           FROM gym_memberships
+           WHERE user_id = ?
+           ORDER BY COALESCE(updated_at, created_at) DESC, id DESC
+           LIMIT 1`;
+      const latestAny = await this.queryOne(latestAnySql, [primaryUser.id]);
+      if (!latestAny) {
+        throw new Error(
+          'Primary has no gym membership yet. Create or confirm their gym membership first, then link immediate family.'
+        );
+      }
+
+      const fg =
+        latestAny.family_group_id != null && String(latestAny.family_group_id).trim() !== ''
+          ? latestAny.family_group_id
+          : null;
+      if (fg) {
+        const currentPrimarySql = isPg
+          ? `SELECT u.email
+             FROM gym_memberships gm
+             JOIN users u ON u.id = gm.user_id
+             WHERE gm.family_group_id = $1 AND gm.is_primary_member IS TRUE
+             ORDER BY COALESCE(gm.updated_at, gm.created_at) DESC, gm.id DESC
+             LIMIT 1`
+          : `SELECT u.email
+             FROM gym_memberships gm
+             JOIN users u ON u.id = gm.user_id
+             WHERE gm.family_group_id = ? AND COALESCE(gm.is_primary_member, 0) = 1
+             ORDER BY COALESCE(gm.updated_at, gm.created_at) DESC, gm.id DESC
+             LIMIT 1`;
+        const currentPrimary = await this.queryOne(currentPrimarySql, [fg]);
+        if (currentPrimary && currentPrimary.email) {
+          throw new Error(
+            `That email is not the household primary. Use ${currentPrimary.email} as Primary email, or promote this member to primary first.`
+          );
+        }
+      }
+
+      throw new Error(
+        'Primary has no primary gym membership. This account appears to be a dependent/non-primary member.'
+      );
+    }
+
+    const pType = String(primaryGm.membership_type || '').toLowerCase();
+    if (pType === 'immediate_family_member') {
+      throw new Error('That account is not a household primary (immediate family member)');
+    }
+    if (pType === 'entire_family') {
+      throw new Error('Full family membership cannot add separate immediate family lines');
+    }
+
+    let familyGroupId =
+      primaryGm.family_group_id != null && String(primaryGm.family_group_id).trim() !== ''
+        ? parseInt(primaryGm.family_group_id, 10)
+        : null;
+    if (familyGroupId == null || Number.isNaN(familyGroupId)) {
+      const existingFg = await this.queryOne(
+        isPg
+          ? 'SELECT id FROM family_groups WHERE primary_user_id = $1 ORDER BY id DESC LIMIT 1'
+          : 'SELECT id FROM family_groups WHERE primary_user_id = ? ORDER BY id DESC LIMIT 1',
+        [primaryUser.id]
+      );
+      if (existingFg && existingFg.id != null) {
+        familyGroupId = parseInt(existingFg.id, 10);
+      } else if (isPg) {
+        const r = await this.query(
+          'INSERT INTO family_groups (primary_user_id) VALUES ($1) RETURNING id',
+          [primaryUser.id]
+        );
+        familyGroupId = r.rows[0].id;
+      } else {
+        await this.query('INSERT INTO family_groups (primary_user_id) VALUES (?)', [primaryUser.id]);
+        const row = await this.queryOne(
+          'SELECT id FROM family_groups WHERE primary_user_id = ? ORDER BY id DESC LIMIT 1',
+          [primaryUser.id]
+        );
+        familyGroupId = row.id;
+      }
+      await this.query(
+        isPg
+          ? 'UPDATE gym_memberships SET family_group_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2'
+          : 'UPDATE gym_memberships SET family_group_id = ?, updated_at = datetime(\'now\') WHERE id = ?',
+        [familyGroupId, primaryGm.id]
+      );
+      primaryGm.family_group_id = familyGroupId;
+    }
+
+    const memberSql = isPg
+      ? 'SELECT * FROM gym_memberships WHERE user_id = $1 ORDER BY id DESC LIMIT 1'
+      : 'SELECT * FROM gym_memberships WHERE user_id = ? ORDER BY id DESC LIMIT 1';
+    const memberGm = await this.queryOne(memberSql, [memberUser.id]);
+
+    if (memberGm) {
+      const memPrimary = memberGm.is_primary_member === true || memberGm.is_primary_member === 1;
+      if (memPrimary) {
+        throw new Error(
+          'That member is already a primary on a gym membership. Remove or transfer that membership before linking as immediate family.'
+        );
+      }
+    }
+
+    const contractStart = primaryGm.contract_start_date;
+    const contractEnd = primaryGm.contract_end_date;
+    const contractMonths = primaryGm.contract_months != null ? primaryGm.contract_months : 12;
+    const dgId = primaryGm.discount_group_id != null ? primaryGm.discount_group_id : null;
+    const discountNameFromPrimary = primaryGm.discount_name || null;
+
+    if (memberGm) {
+      await this.query(
+        isPg
+          ? `UPDATE gym_memberships SET
+             membership_type = 'immediate_family_member',
+             family_group_id = $1,
+             is_primary_member = FALSE,
+             household_id = NULL,
+             discount_group_id = $2,
+             contract_start_date = $3,
+             contract_end_date = $4,
+             contract_months = $5,
+             status = 'active',
+             stripe_subscription_id = NULL,
+             stripe_subscription_item_id = NULL,
+             billing_period = 'monthly',
+             monthly_amount_cents = NULL,
+             discount_name = $6,
+             updated_at = CURRENT_TIMESTAMP
+             WHERE id = $7`
+          : `UPDATE gym_memberships SET
+             membership_type = 'immediate_family_member',
+             family_group_id = ?,
+             is_primary_member = 0,
+             household_id = NULL,
+             discount_group_id = ?,
+             contract_start_date = ?,
+             contract_end_date = ?,
+             contract_months = ?,
+             status = 'active',
+             stripe_subscription_id = NULL,
+             stripe_subscription_item_id = NULL,
+             billing_period = 'monthly',
+             monthly_amount_cents = NULL,
+             discount_name = ?,
+             updated_at = datetime('now')
+             WHERE id = ?`,
+        isPg
+          ? [familyGroupId, dgId, contractStart, contractEnd, contractMonths, discountNameFromPrimary, memberGm.id]
+          : [familyGroupId, dgId, contractStart, contractEnd, contractMonths, discountNameFromPrimary, memberGm.id]
+      );
+    } else if (isPg) {
+      await this.query(
+        `INSERT INTO gym_memberships (
+           user_id, membership_type, household_id, family_group_id, is_primary_member, discount_group_id,
+           status, contract_start_date, contract_end_date, contract_months, monthly_amount_cents, discount_name, created_at
+         ) VALUES ($1, 'immediate_family_member', NULL, $2, FALSE, $3, 'active', $4, $5, $6, NULL, $7, CURRENT_TIMESTAMP)`,
+        [memberUser.id, familyGroupId, dgId, contractStart, contractEnd, contractMonths, discountNameFromPrimary]
+      );
+    } else {
+      await this.query(
+        `INSERT INTO gym_memberships (
+           user_id, membership_type, household_id, family_group_id, is_primary_member, discount_group_id,
+           status, contract_start_date, contract_end_date, contract_months, monthly_amount_cents, discount_name, created_at
+         ) VALUES (?, 'immediate_family_member', NULL, ?, 0, ?, 'active', ?, ?, ?, NULL, ?, datetime('now'))`,
+        [memberUser.id, familyGroupId, dgId, contractStart, contractEnd, contractMonths, discountNameFromPrimary]
+      );
+    }
+
+    const aamRow = await this.queryOne(
+      isPg
+        ? `SELECT id, household_members FROM admin_added_members
+           WHERE LOWER(TRIM(primary_email)) = LOWER(TRIM($1)) ORDER BY id DESC LIMIT 1`
+        : `SELECT id, household_members FROM admin_added_members
+           WHERE LOWER(TRIM(primary_email)) = LOWER(TRIM(?)) ORDER BY id DESC LIMIT 1`,
+      [pe]
+    );
+    if (aamRow && aamRow.id != null) {
+      let household = [];
+      try {
+        let raw = aamRow.household_members;
+        if (typeof raw === 'string') raw = JSON.parse(raw || '[]');
+        household = Array.isArray(raw) ? raw : [];
+      } catch (_) {
+        household = [];
+      }
+      const normalizedName = String(name || memberUser.name || '').trim().toLowerCase();
+      const isPlaceholderEmail = (email) => {
+        const e = String(email || '').trim().toLowerCase();
+        return !e || e.endsWith('@no-email.stoic-fit.local') || e.endsWith('@stoic-fit.local');
+      };
+      const existingIdx = household.findIndex((h) => {
+        const hem = String(h.email || '').trim().toLowerCase();
+        if (hem && hem === me) return true;
+        // If we now have a real email, upgrade an existing placeholder row by name
+        // instead of adding a duplicate household member entry.
+        const hName = String(h.name || '').trim().toLowerCase();
+        return !placeholderEmailGenerated && isPlaceholderEmail(hem) && normalizedName && hName === normalizedName;
+      });
+      const entry = {
+        email: me,
+        name: name || memberUser.name || '',
+        membership_type: 'immediate_family_member'
+      };
+      const listCents =
+        memberListPriceCents != null && Number.isFinite(Number(memberListPriceCents))
+          ? Math.round(Number(memberListPriceCents))
+          : null;
+      if (listCents != null && listCents > 0) {
+        entry.list_price_cents = listCents;
+      }
+      if (existingIdx >= 0) household[existingIdx] = { ...household[existingIdx], ...entry };
+      else household.push(entry);
+      // Final dedupe pass: keep one row per real email, or per name when email is missing/placeholder.
+      const seenHouseholdKeys = new Set();
+      household = household.filter((h) => {
+        const em = String(h?.email || '').trim().toLowerCase();
+        const nm = String(h?.name || '').trim().toLowerCase();
+        const key = !isPlaceholderEmail(em) ? `email:${em}` : (nm ? `name:${nm}` : null);
+        if (!key) return true;
+        if (seenHouseholdKeys.has(key)) return false;
+        seenHouseholdKeys.add(key);
+        return true;
+      });
+      const jsonStr = JSON.stringify(household);
+      await this.query(
+        isPg
+          ? 'UPDATE admin_added_members SET household_members = $1::jsonb WHERE id = $2'
+          : 'UPDATE admin_added_members SET household_members = ? WHERE id = ?',
+        [jsonStr, aamRow.id]
+      );
+
+      if (discountTotalCents != null && Number.isFinite(Number(discountTotalCents))) {
+        const dc = Math.max(0, Math.round(Number(discountTotalCents)));
+        const dn = (discountName && String(discountName).trim()) || 'Staff discount';
+        await this.query(
+          isPg
+            ? `UPDATE admin_added_members SET
+                 discount_1_cents = $1, discount_2_cents = 0, discount_3_cents = 0,
+                 discount_1_name = $2, discount_2_name = NULL, discount_3_name = NULL
+               WHERE id = $3`
+            : `UPDATE admin_added_members SET
+                 discount_1_cents = ?, discount_2_cents = 0, discount_3_cents = 0,
+                 discount_1_name = ?, discount_2_name = NULL, discount_3_name = NULL
+               WHERE id = ?`,
+          [dc, dn, aamRow.id]
+        );
+      }
+    }
+
+    const repairOpts = { primaryEmail: pe };
+    if (!(aamRow && aamRow.id) && discountTotalCents != null && Number.isFinite(Number(discountTotalCents))) {
+      repairOpts.discountTotalCentsOverride = Math.max(0, Math.round(Number(discountTotalCents)));
+    }
+    if (!(aamRow && aamRow.id)) {
+      const lc =
+        memberListPriceCents != null && Number.isFinite(Number(memberListPriceCents))
+          ? Math.round(Number(memberListPriceCents))
+          : null;
+      if (lc != null && lc > 0) {
+        repairOpts.perUserBaseCentsOverride = { [memberUser.id]: lc };
+      }
+    }
+
+    const repair = await this.repairPrimaryHouseholdMonthlyAmounts(repairOpts);
+
+    const warnings = [];
+    if (!(aamRow && aamRow.id)) {
+      if (discountTotalCents != null && Number.isFinite(Number(discountTotalCents))) {
+        warnings.push(
+          'No admin_added_members row for this primary: discount was applied for this repair only. Add the household in Add Member (or create admin_added) so future “Run repair” keeps the discount.'
+        );
+      }
+      const lcWarn =
+        memberListPriceCents != null && Number.isFinite(Number(memberListPriceCents))
+          ? Math.round(Number(memberListPriceCents))
+          : null;
+      if (lcWarn != null && lcWarn > 0) {
+        warnings.push(
+          'No admin_added_members row: custom member list price was applied for this repair only via override.'
+        );
+      }
+    }
+
+    return {
+      ok: true,
+      family_group_id: familyGroupId,
+      member_user_id: memberUser.id,
+      member_email: me,
+      placeholder_email_generated: placeholderEmailGenerated || undefined,
+      repair,
+      warnings: warnings.length ? warnings : undefined
+    };
   }
 
   // Admin-added members (migration from old system)
@@ -3532,13 +4894,15 @@ class Database {
     if (filterTier === 'drop_in' || filterTier === 'buddy_pass') {
       sql = this.isPostgres
         ? `SELECT p.id, p.user_id, p.amount, p.currency, p.email, p.status, p.created_at, p.tier,
-                   COALESCE(p.email, u.email) as display_email
+                   COALESCE(p.email, u.email) AS display_email,
+                   NULLIF(TRIM(u.name), '') AS visitor_name
             FROM payments p
             JOIN users u ON p.user_id = u.id
             WHERE p.status = 'succeeded' AND p.tier = $1
             ORDER BY p.created_at DESC`
         : `SELECT p.id, p.user_id, p.amount, p.currency, p.email, p.status, p.created_at, p.tier,
-                   COALESCE(p.email, u.email) as display_email
+                   COALESCE(p.email, u.email) AS display_email,
+                   NULLIF(TRIM(u.name), '') AS visitor_name
             FROM payments p
             JOIN users u ON p.user_id = u.id
             WHERE p.status = 'succeeded' AND p.tier = ?
@@ -3547,13 +4911,15 @@ class Database {
     } else {
       sql = this.isPostgres
         ? `SELECT p.id, p.user_id, p.amount, p.currency, p.email, p.status, p.created_at, p.tier,
-                   COALESCE(p.email, u.email) as display_email
+                   COALESCE(p.email, u.email) AS display_email,
+                   NULLIF(TRIM(u.name), '') AS visitor_name
             FROM payments p
             JOIN users u ON p.user_id = u.id
             WHERE p.status = 'succeeded' AND p.tier IN ('drop_in', 'buddy_pass')
             ORDER BY p.created_at DESC`
         : `SELECT p.id, p.user_id, p.amount, p.currency, p.email, p.status, p.created_at, p.tier,
-                   COALESCE(p.email, u.email) as display_email
+                   COALESCE(p.email, u.email) AS display_email,
+                   NULLIF(TRIM(u.name), '') AS visitor_name
             FROM payments p
             JOIN users u ON p.user_id = u.id
             WHERE p.status = 'succeeded' AND p.tier IN ('drop_in', 'buddy_pass')
@@ -4158,6 +5524,114 @@ class Database {
       }
     }
     return false;
+  }
+
+  /** Public: member asks staff for a 6-digit login code (dedupe: one pending row per user). */
+  async insertLoginCodeRequest(userId, email, memberNote) {
+    const note = memberNote && String(memberNote).trim() ? String(memberNote).trim().slice(0, 2000) : null;
+    const em = String(email || '').trim().toLowerCase();
+    if (this.isPostgres) {
+      const existing = await this.queryOne(
+        `SELECT id FROM login_code_requests WHERE user_id = $1 AND status = 'pending' LIMIT 1`,
+        [userId]
+      );
+      if (existing) {
+        await this.query(
+          `UPDATE login_code_requests SET member_note = COALESCE($2, member_note), email = $3 WHERE id = $1`,
+          [existing.id, note, em]
+        );
+        return { id: existing.id, updated: true };
+      }
+      const r = await this.query(
+        `INSERT INTO login_code_requests (user_id, email, member_note, status)
+         VALUES ($1, $2, $3, 'pending') RETURNING id`,
+        [userId, em, note]
+      );
+      return { id: r.rows[0].id, updated: false };
+    }
+    const existing = await this.queryOne(
+      `SELECT id FROM login_code_requests WHERE user_id = ? AND status = 'pending' LIMIT 1`,
+      [userId]
+    );
+    if (existing) {
+      await this.query(
+        `UPDATE login_code_requests SET member_note = COALESCE(?, member_note), email = ? WHERE id = ?`,
+        [note, em, existing.id]
+      );
+      return { id: existing.id, updated: true };
+    }
+    const r = await this.query(
+      `INSERT INTO login_code_requests (user_id, email, member_note, status)
+       VALUES (?, ?, ?, 'pending')`,
+      [userId, em, note]
+    );
+    return { id: r.lastID, updated: false };
+  }
+
+  async getPendingLoginCodeRequestById(requestId) {
+    const id = parseInt(requestId, 10);
+    if (!Number.isFinite(id) || id < 1) return null;
+    if (this.isPostgres) {
+      return await this.queryOne(
+        `SELECT id, user_id, email, member_note, status, created_at
+         FROM login_code_requests WHERE id = $1 AND status = 'pending'`,
+        [id]
+      );
+    }
+    return await this.queryOne(
+      `SELECT id, user_id, email, member_note, status, created_at
+       FROM login_code_requests WHERE id = ? AND status = 'pending'`,
+      [id]
+    );
+  }
+
+  async listPendingLoginCodeRequests(limit = 100) {
+    const lim = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500);
+    if (this.isPostgres) {
+      const r = await this.query(
+        `SELECT r.id, r.user_id, r.email, r.member_note, r.created_at,
+                u.name AS user_name
+         FROM login_code_requests r
+         LEFT JOIN users u ON u.id = r.user_id
+         WHERE r.status = 'pending'
+         ORDER BY r.created_at ASC
+         LIMIT $1`,
+        [lim]
+      );
+      return r.rows || [];
+    }
+    const r = await this.query(
+      `SELECT r.id, r.user_id, r.email, r.member_note, r.created_at,
+              u.name AS user_name
+       FROM login_code_requests r
+       LEFT JOIN users u ON u.id = r.user_id
+       WHERE r.status = 'pending'
+       ORDER BY r.created_at ASC
+       LIMIT ?`,
+      [lim]
+    );
+    return r.rows || [];
+  }
+
+  async dismissLoginCodeRequest(requestId, adminUserId) {
+    const id = parseInt(requestId, 10);
+    if (!Number.isFinite(id) || id < 1) return false;
+    if (this.isPostgres) {
+      const r = await this.query(
+        `UPDATE login_code_requests
+         SET status = 'dismissed', dismissed_at = CURRENT_TIMESTAMP, dismissed_by_admin_id = $2
+         WHERE id = $1 AND status = 'pending'`,
+        [id, adminUserId]
+      );
+      return (r.rowCount || 0) > 0;
+    }
+    const r = await this.query(
+      `UPDATE login_code_requests
+       SET status = 'dismissed', dismissed_at = datetime('now'), dismissed_by_admin_id = ?
+       WHERE id = ? AND status = 'pending'`,
+      [adminUserId, id]
+    );
+    return (r.changes || 0) > 0;
   }
 
   // Banner settings (global)

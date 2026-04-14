@@ -50,13 +50,13 @@ python3 scripts/update_ecs_env_vars.py \
 
 # Billing Mode
 echo ""
-echo "📝 Setting billing mode to Stripe subscriptions..."
+echo "📝 Setting BILLING_MODE=one_time (app tiers: PaymentIntents + DB; no Stripe Subscriptions checkout)..."
 python3 scripts/update_ecs_env_vars.py \
   --region $REGION \
   --cluster $CLUSTER \
   --service $SERVICE \
   --container $CONTAINER \
-  --set BILLING_MODE=stripe_subscriptions
+  --set BILLING_MODE=one_time
 
 echo ""
 echo "════════════════════════════════════════════════"

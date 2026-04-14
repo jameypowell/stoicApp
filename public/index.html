@@ -98,15 +98,19 @@
                         </p>
                     </form>
 
-                    <!-- Forgot Password Form -->
+                    <!-- Forgot Password / request 6-digit code from staff (no automated email) -->
                     <form id="forgotPasswordForm" class="auth-form" style="display: none;">
-                        <h3>Reset Password</h3>
-                        <p class="form-help-text">Enter your email address and we'll send you a link to reset your password.</p>
+                        <h3>Trouble signing in?</h3>
+                        <p class="form-help-text">We don’t send automated password emails. Enter the email on your account to request a <strong>6-digit code from Stoic Fit staff</strong>. When you receive it, use that code as your <strong>password</strong> on the login screen, then create a new password.</p>
                         <div class="form-group">
                             <label for="forgotPasswordEmail">Email</label>
-                            <input type="email" id="forgotPasswordEmail" required>
+                            <input type="email" id="forgotPasswordEmail" required autocomplete="email">
                         </div>
-                        <button type="submit" class="btn btn-primary">Send Reset Link</button>
+                        <div class="form-group">
+                            <label for="forgotPasswordMemberNote">Optional note to staff</label>
+                            <input type="text" id="forgotPasswordMemberNote" maxlength="500" placeholder="e.g. best number to reach me" style="width: 100%;">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Request 6-digit code from staff</button>
                         <div id="forgotPasswordError" class="error-message"></div>
                         <div id="forgotPasswordSuccess" class="success-message" style="display: none;"></div>
                         <p class="back-to-login-link">
@@ -395,6 +399,7 @@
                             <button class="admin-tab" id="adminAppSubsTab" data-admin-tab="app-subs">App Subs</button>
                             <button class="admin-tab" id="adminTransactionsTab" data-admin-tab="transactions">Transactions</button>
                             <button class="admin-tab" id="adminDropInsTab" data-admin-tab="drop-ins">Drop Ins</button>
+                            <button class="admin-tab" id="adminBuddyPassesTab" data-admin-tab="buddy-passes">Buddy Passes</button>
                             <button class="admin-tab" id="adminFreeTrialsTab" data-admin-tab="free-trials">Free Trial</button>
                             <button class="admin-tab" id="adminAddMemberTab" data-admin-tab="add-member">Add Member</button>
                             <button class="admin-tab" id="adminBannerTab" data-admin-tab="banner">Banner Message</button>
@@ -402,6 +407,91 @@
                             <button class="admin-tab" id="adminErrorLogsTab" data-admin-tab="error-logs">Error Log</button>
                         </div>
                         <div id="adminUsersContent" class="admin-tab-content" style="display: block;">
+                            <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; font-size: 0.8125rem; color: #065f46;">
+                                <strong style="color: #047857;">Household billing amounts</strong> — recalculates per-line <code style="font-size: 0.75rem;">monthly_amount_cents</code> for multi-member households (same rules as migration). Uses the live database. Leave email blank to repair all households.
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+                                    <input type="email" id="adminRepairHouseholdEmail" placeholder="Primary email (optional)" style="flex: 1; min-width: 200px; max-width: 320px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <button type="button" class="btn btn-small" id="adminRepairHouseholdBtn">Run repair</button>
+                                </div>
+                                <div id="adminRepairHouseholdOut" style="margin-top: 0.5rem; font-size: 0.75rem; white-space: pre-wrap; word-break: break-word;"></div>
+                                <div id="adminRepairHouseholdErr" class="error-message" style="display: none; margin-top: 0.35rem;"></div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 8px; font-size: 0.8125rem; color: #1e3a5f;">
+                                <strong style="color: #1d4ed8;">Link immediate family</strong> — puts a member on the primary’s household (<code style="font-size: 0.75rem;">family_group_id</code>), then recalculates per-line amounts. Primary billing email is required. Member email is optional: if left blank, nothing is shown as their email until the billing primary adds it under <strong>Gym → Household</strong>. Member name is optional and defaults to “Immediate family member” when there is no email.
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+                                    <input type="email" id="adminLinkFamPrimaryEmail" placeholder="Primary email" style="flex: 1; min-width: 140px; max-width: 240px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <input type="email" id="adminLinkFamMemberEmail" placeholder="Member email (optional)" style="flex: 1; min-width: 140px; max-width: 240px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <input type="text" id="adminLinkFamMemberName" placeholder="Member name (optional)" style="flex: 1; min-width: 120px; max-width: 200px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <button type="button" class="btn btn-small" id="adminLinkImmediateFamilyBtn">Link</button>
+                                </div>
+                                <div id="adminLinkImmediateFamilyOut" style="margin-top: 0.5rem; font-size: 0.75rem; white-space: pre-wrap; word-break: break-word;"></div>
+                                <div id="adminLinkImmediateFamilyErr" class="error-message" style="display: none; margin-top: 0.35rem;"></div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: #eef2ff; border: 1px solid #a5b4fc; border-radius: 8px; font-size: 0.8125rem; color: #312e81;">
+                                <strong style="color: #3730a3;">Link immediate family (with amount &amp; discount)</strong> — same as above (member email optional; if omitted, their email stays blank in the app until the billing primary adds it under <strong>Gym → Household</strong>), plus optional <strong>member list price</strong> (defaults to standard immediate-family list price if blank) and <strong>total household discount</strong> in dollars (split proportionally across lines). If an <code style="font-size: 0.75rem;">admin_added_members</code> row exists for the primary, discount and custom list price are saved there; otherwise amounts apply for this run only (see warnings in the result).
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+                                    <input type="email" id="adminLinkBillPrimaryEmail" placeholder="Primary email" style="flex: 1; min-width: 140px; max-width: 240px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <input type="email" id="adminLinkBillMemberEmail" placeholder="Member email (optional)" style="flex: 1; min-width: 140px; max-width: 240px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <input type="text" id="adminLinkBillMemberName" placeholder="Member name (optional)" style="flex: 1; min-width: 120px; max-width: 200px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                </div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+                                    <input type="text" id="adminLinkBillMemberListDollars" placeholder="Member list $ (e.g. 50)" inputmode="decimal" style="width: 8rem; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;" title="Optional list price for this member’s line before discount split">
+                                    <input type="text" id="adminLinkBillDiscountDollars" placeholder="Discount $ total (e.g. 15)" inputmode="decimal" style="width: 9rem; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;" title="Total discount off combined list prices; split proportionally">
+                                    <input type="text" id="adminLinkBillDiscountName" placeholder="Discount label (optional)" style="flex: 1; min-width: 140px; max-width: 220px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <button type="button" class="btn btn-small" id="adminLinkImmediateFamilyBillingBtn">Link with billing</button>
+                                </div>
+                                <div id="adminLinkBillOut" style="margin-top: 0.5rem; font-size: 0.75rem; white-space: pre-wrap; word-break: break-word;"></div>
+                                <div id="adminLinkBillErr" class="error-message" style="display: none; margin-top: 0.35rem;"></div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8125rem; color: #475569;">
+                                <strong style="color: #334155;">Password reset link</strong> (forgot-password does not email in production — copy this for the member):
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+                                    <input type="email" id="adminPasswordResetEmail" placeholder="member@email.com" style="flex: 1; min-width: 200px; max-width: 320px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <button type="button" class="btn btn-small" id="adminPasswordResetLinkBtn">Get link</button>
+                                </div>
+                                <div id="adminPasswordResetLinkOut" style="margin-top: 0.5rem; word-break: break-all; font-size: 0.75rem; color: #1e40af;"></div>
+                                <div id="adminPasswordResetLinkErr" class="error-message" style="display: none; margin-top: 0.35rem;"></div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: #faf5ff; border: 1px solid #d8b4fe; border-radius: 8px; font-size: 0.8125rem; color: #581c87;">
+                                <strong style="color: #6b21a8;">Member display name</strong> — sets the name shown in the app and admin lists (account email unchanged).
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+                                    <input type="email" id="adminSetNameEmail" placeholder="member@email.com" style="flex: 1; min-width: 180px; max-width: 280px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <input type="text" id="adminSetNameFull" placeholder="Full name" style="flex: 1; min-width: 140px; max-width: 240px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <button type="button" class="btn btn-small" id="adminSetNameBtn">Save name</button>
+                                </div>
+                                <div id="adminSetNameOut" style="margin-top: 0.5rem; font-size: 0.75rem; color: #15803d;"></div>
+                                <div id="adminSetNameErr" class="error-message" style="display: none; margin-top: 0.35rem;"></div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; font-size: 0.8125rem; color: #14532d;">
+                                <strong style="color: #166534;">Gym card from app subscription</strong> — copies the member’s app subscription payment method onto their latest gym membership row and sets it as the Stripe customer default (and on the gym subscription when the customer matches).
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+                                    <input type="email" id="adminSyncGymPmEmail" placeholder="member@email.com" style="flex: 1; min-width: 200px; max-width: 320px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <button type="button" class="btn btn-small" id="adminSyncGymPmBtn">Sync gym payment</button>
+                                </div>
+                                <div id="adminSyncGymPmOut" style="margin-top: 0.5rem; font-size: 0.75rem; white-space: pre-wrap; word-break: break-word; color: #15803d;"></div>
+                                <div id="adminSyncGymPmErr" class="error-message" style="display: none; margin-top: 0.35rem;"></div>
+                            </div>
+                            <div style="margin-bottom: 0.75rem; padding: 0.75rem; background: #ecfeff; border: 1px solid #67e8f9; border-radius: 8px; font-size: 0.8125rem; color: #0e7490;">
+                                <strong style="color: #0e7490;">Household gym contract dates</strong> — sets <code style="font-size: 0.75rem;">contract_start_date</code>, <code style="font-size: 0.75rem;">contract_end_date</code>, and <code style="font-size: 0.75rem;">start_date</code> for the primary and everyone on the same <code style="font-size: 0.75rem;">family_group_id</code> (use the <strong>billing primary</strong> email). Same day for start and first charge is allowed.
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
+                                    <input type="email" id="adminHouseholdAnchorEmail" placeholder="primary@email.com" style="flex: 1; min-width: 160px; max-width: 260px; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <input type="date" id="adminHouseholdAnchorStart" title="Contract start" style="padding: 0.35rem 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <input type="date" id="adminHouseholdAnchorEnd" title="First charge / period end" style="padding: 0.35rem 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                                    <button type="button" class="btn btn-small" id="adminHouseholdAnchorBtn">Apply dates</button>
+                                </div>
+                                <div id="adminHouseholdAnchorOut" style="margin-top: 0.5rem; font-size: 0.75rem; white-space: pre-wrap; word-break: break-word; color: #0f766e;"></div>
+                                <div id="adminHouseholdAnchorErr" class="error-message" style="display: none; margin-top: 0.35rem;"></div>
+                            </div>
+                            <div style="margin-bottom: 1rem; padding: 0.75rem; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; font-size: 0.8125rem; color: #78350f;">
+                                <strong style="color: #92400e;">6-digit code requests</strong> (from “Forgot password?” — members asking staff for a login code)
+                                <div id="adminLoginCodeRequestsContainer" style="margin-top: 0.5rem;">
+                                    <p style="margin: 0; color: #6b7280; font-size: 0.8rem;">Open this tab to load pending requests.</p>
+                                </div>
+                                <button type="button" class="btn btn-small" id="refreshLoginCodeRequestsBtn" style="margin-top: 0.5rem;">Refresh requests</button>
+                            </div>
+                            <div style="margin-bottom: 0.75rem;">
+                                <input type="text" id="adminUsersSearchInput" placeholder="Search users by name, email, role, or IP..." style="width: 100%; max-width: 420px; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                            </div>
                             <div id="usersTableContainer" class="users-table-container">
                                 <p class="loading">Loading users...</p>
                             </div>
@@ -419,6 +509,7 @@
                             </div>
                         </div>
                         <div id="adminDropInsContent" class="admin-tab-content" style="display: none;">
+                            <p style="margin: 0 0 0.75rem 0; font-size: 0.8125rem; color: #64748b; max-width: 48rem;">Drop-ins create a lightweight account on that email so charges are stored before someone joins as a member. <strong>Name</strong> is taken from the waiver signature (or updated by staff). If they later <strong>register with the same email</strong> or <strong>Sign in with Google</strong> on that email, they keep this history under Gym → Payment history.</p>
                             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
                                 <label for="dropInsFilter" style="font-size: 0.875rem;">Filter:</label>
                                 <select id="dropInsFilter" style="padding: 0.375rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
@@ -430,6 +521,14 @@
                             </div>
                             <div id="dropInsTableContainer" class="users-table-container">
                                 <p class="loading">Loading drop-ins...</p>
+                            </div>
+                        </div>
+                        <div id="adminBuddyPassesContent" class="admin-tab-content" style="display: none;">
+                            <div id="buddyPassesTableContainer" class="users-table-container">
+                                <p class="loading">Loading buddy passes...</p>
+                            </div>
+                            <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                                <button class="btn btn-small" id="refreshBuddyPassesBtn">Refresh</button>
                             </div>
                         </div>
                         <div id="adminFreeTrialsContent" class="admin-tab-content" style="display: none;">
@@ -444,6 +543,9 @@
                             <div id="addMemberFormContainer" class="admin-add-member-form" style="max-width: 720px; padding: 1rem 0;"></div>
                         </div>
                         <div id="adminMembersContent" class="admin-tab-content" style="display: none;">
+                            <div style="margin-bottom: 0.75rem;">
+                                <input type="text" id="adminMembersSearchInput" placeholder="Search gym members by name, email, membership type, phone, or status..." style="width: 100%; max-width: 520px; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                            </div>
                             <div id="membersTableContainer" class="users-table-container">
                                 <p class="loading">Loading gym members...</p>
                             </div>
@@ -460,15 +562,16 @@
                             </div>
                         </div>
                         <div id="adminTransactionsContent" class="admin-tab-content" style="display: none;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
-                                <button type="button" class="btn btn-small admin-transactions-subtab active" id="adminTransactionsSubUpcoming" data-tx-sub="upcoming">Upcoming</button>
-                                <button type="button" class="btn btn-small admin-transactions-subtab" id="adminTransactionsSubPast" data-tx-sub="past">Past</button>
+                            <p style="margin: 0 0 0.75rem 0; font-size: 0.8125rem; color: #475569; max-width: 52rem;">
+                                Pick a <strong>calendar month</strong> (Mountain Time). The tab shows <strong>successful</strong> charges, <strong>unsuccessful</strong> or non-completed <code>payments</code> rows, and <strong>pending/upcoming</strong> gym or paid-app renewals with a <strong>due date</strong> in that month, plus a <strong>per-member snapshot</strong> for everyone in the admin user list (e.g. April). Defaults to the current Denver month on first open.
+                            </p>
+                            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin-bottom: 0.75rem;">
+                                <label for="adminTransactionsMonthPicker" style="font-size: 0.8125rem; color: #334155; font-weight: 600;">Month</label>
+                                <input type="month" id="adminTransactionsMonthPicker" style="padding: 0.35rem 0.5rem; font-size: 0.875rem; border: 1px solid #cbd5e1; border-radius: 6px;" />
+                                <span style="font-size: 0.75rem; color: #64748b;">America/Denver</span>
                             </div>
-                            <div id="transactionsUpcomingContainer" class="users-table-container">
-                                <p class="loading">Loading upcoming transactions...</p>
-                            </div>
-                            <div id="transactionsPastContainer" class="users-table-container" style="display: none;">
-                                <p class="loading">Loading past transactions...</p>
+                            <div id="transactionsCurrentMonthContainer" class="users-table-container">
+                                <p class="loading">Loading transactions...</p>
                             </div>
                             <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
                                 <button class="btn btn-small" id="refreshTransactionsBtn">Refresh</button>
@@ -845,7 +948,7 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script src="tier-access-config.js?v=20260303"></script>
     <!-- Bump v= whenever public/app.js changes so CDN/browser load new bundle (Sharla gym PM bypass lives in app.js). -->
-    <script src="app.js?v=20260330-google-signin-hotfix"></script>
+    <script src="app.js?v=20260410-force-session-refresh"></script>
     <script src="macro-calculator.js?v=20260303"></script>
     <script src="membership-signup.js?v=20260328-contract-ack"></script>
 </body>

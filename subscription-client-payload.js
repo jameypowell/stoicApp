@@ -160,6 +160,23 @@ async function buildSubscriptionClientPayload(stripe, db, subscription, user) {
       });
       stripeStatusForUi = resolved.ui;
 
+      // Stale Stripe link: sub canceled in Stripe but DB row still active with paid-through end_date
+      // (e.g. duplicate customer cleanup, replaced subscription id). Trust DB for member UI.
+      const dbRowStillAccess =
+        subscription.status === 'active' ||
+        subscription.status === 'grace_period' ||
+        subscription.status === 'free_trial';
+      if (stripeStatusRaw === 'canceled' && dbRowStillAccess) {
+        const ed = subscription.end_date ? new Date(subscription.end_date) : null;
+        const paidThrough =
+          ed && !Number.isNaN(ed.getTime()) && ed.getTime() > Date.now();
+        if (paidThrough) {
+          stripeStatusForUi = 'active';
+          // Do not replace DB end_date with Stripe period end for a canceled API object.
+          stripeCurrentPeriodEndIso = null;
+        }
+      }
+
       if (stripeTierFromPrice && ['active', 'trialing', 'past_due', 'unpaid'].includes(stripeStatusRaw) && stripeTierFromPrice !== subscription.tier) {
         db.updateSubscription(subscription.id, { tier: stripeTierFromPrice }).catch((err) =>
           console.warn('[subscription-client-payload] persist tier from Stripe failed:', err.message)

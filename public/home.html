@@ -758,7 +758,7 @@
       <h2>JUST VISITING FOR THE DAY?</h2>
       <div class="dropin-inner">
         <div class="dropin-intro">
-          <strong>Drop-in fee:</strong> The $5.00 drop-in fee is for one-day use only. It gives you access to the gym facility and all classes for that day only.
+          <strong>Drop-in fee: $8.00</strong> — One-day use only. You get access to the gym facility and all classes for that day only. <em>Fee is $8.00 before you continue.</em>
           <button type="button" class="dropin-proceed-btn" id="homeDropInProceed">Proceed to waiver &amp; payment</button>
         </div>
         <div class="dropin-step2" id="homeDropInStep2">
@@ -795,9 +795,9 @@
           <input type="email" id="homeWaiverEmail" placeholder="Enter your email">
         </div>
         <div class="dropin-fee-box">
-          <p><strong>One-Time Drop-In Fee</strong></p>
-          <p>Pay $5.00 for a single day pass. Access to the gym and classes for that day only.</p>
-          <button type="button" class="dropin-pay-btn" id="homeDropInPayBtn" disabled>Pay $5.00</button>
+          <p><strong>One-Time Drop-In Fee: $8.00</strong></p>
+          <p>You will be charged <strong>$8.00</strong> for a single day pass when you tap Pay below. Access to the gym and classes for that day only.</p>
+          <button type="button" class="dropin-pay-btn" id="homeDropInPayBtn" disabled>Pay $8.00</button>
         </div>
         </div>
       </div>
@@ -807,11 +807,11 @@
     <div id="homePaymentModal" class="modal" style="display: none;">
       <div class="modal-content">
         <span class="close" onclick="document.getElementById('homePaymentModal').style.display='none'">×</span>
-        <h2>Complete Drop-In Payment ($5.00)</h2>
+        <h2>Complete Drop-In Payment ($8.00)</h2>
         <div id="homePaymentElement">
           <!-- Stripe Elements will mount here -->
         </div>
-        <button id="homePayButton" class="btn btn-primary" type="button">Pay $5.00</button>
+        <button id="homePayButton" class="btn btn-primary" type="button">Pay $8.00</button>
         <div id="homePaymentError" class="error-message" style="display: none; margin-top: 0.75rem;"></div>
       </div>
     </div>
@@ -980,6 +980,7 @@
 
     (function() {
       const API_BASE = '';
+      const DROP_IN_FEE_LABEL = '$8.00';
       const step2 = document.getElementById('homeDropInStep2');
       const proceedBtn = document.getElementById('homeDropInProceed');
       const box = document.getElementById('homeWaiverBox');
@@ -1100,7 +1101,8 @@
               },
               body: JSON.stringify({
                 email: em,
-                waiverSignature: sig
+                waiverSignature: sig,
+                visitorName: sig
               })
             });
 
@@ -1111,12 +1113,13 @@
             }
 
             const dropInPaymentIntentId = data.paymentIntentId || null;
+            const dropInDisplay = (data && data.amountDisplay) ? String(data.amountDisplay) : DROP_IN_FEE_LABEL;
 
             const modal = document.getElementById('homePaymentModal');
             const elementContainer = document.getElementById('homePaymentElement');
             const errorDiv = document.getElementById('homePaymentError');
             const title = modal.querySelector('h2');
-            if (title) title.textContent = 'Complete Drop-In Payment ($5.00)';
+            if (title) title.textContent = 'Complete Drop-In Payment (' + dropInDisplay + ')';
 
             elementContainer.innerHTML = '';
             errorDiv.textContent = '';
@@ -1132,7 +1135,7 @@
 
             const submitBtn = document.getElementById('homePayButton');
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Pay $5.00';
+            submitBtn.textContent = 'Pay ' + dropInDisplay;
 
             submitBtn.onclick = async function() {
               submitBtn.disabled = true;
@@ -1180,14 +1183,14 @@
                 errorDiv.textContent = (err && err.message) || 'Payment failed. Please try again.';
                 errorDiv.style.display = 'block';
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Pay $5.00';
+                submitBtn.textContent = 'Pay ' + dropInDisplay;
               }
             };
           } catch (err) {
             alert((err && err.message) || 'Unable to start payment. Please try again.');
           } finally {
             payBtn.disabled = false;
-            payBtn.textContent = 'Pay $5.00';
+            payBtn.textContent = 'Pay ' + DROP_IN_FEE_LABEL;
           }
         });
       }

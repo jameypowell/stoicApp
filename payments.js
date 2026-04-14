@@ -316,15 +316,16 @@ async function cancelSubscription(subscriptionId, cancelImmediately = false) {
   }
 }
 
-// Calculate subscription end date based on tier
-function calculateEndDate(tier) {
-  const now = new Date();
-  const endDate = new Date(now);
-  
-  // All subscriptions are valid for 30 days from purchase
-  endDate.setDate(now.getDate() + 30);
-  
-  return endDate.toISOString();
+const { DateTime } = require('luxon');
+const { AMERICA_DENVER } = require('./lib/mountain-time');
+const { computeGymContractEndYmdFromStartYmd, isoEndOfDayUtcFromDenverYmd } = require('./lib/gym-contract-dates');
+
+// Calculate subscription end date based on tier (calendar-month rule in America/Denver)
+function calculateEndDate(_tier) {
+  void _tier;
+  const startYmd = DateTime.now().setZone(AMERICA_DENVER).toFormat('yyyy-MM-dd');
+  const endYmd = computeGymContractEndYmdFromStartYmd(startYmd);
+  return isoEndOfDayUtcFromDenverYmd(endYmd) || new Date().toISOString();
 }
 
 // Check if user has access to a specific date

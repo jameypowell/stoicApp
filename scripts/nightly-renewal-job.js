@@ -2,16 +2,22 @@
 
 /**
  * Nightly Renewal Job for Hybrid Subscription System
- * 
+ *
+ * Safeguards (duplicate-charge prevention):
+ * - Skips app and gym rows with stripe_subscription_id set (Stripe invoices renew those).
+ * - PostgreSQL advisory lock so only one ECS task runs renewals at a time.
+ * - Stripe idempotency keys on off-session PaymentIntents (safe retries / overlapping triggers).
+ * - App renewals include past-due end_date rows so the legacy invoice job is not required.
+ *
  * This script runs daily to:
- * 1. Find subscriptions expiring in the next 1-2 days
+ * 1. Find app subscriptions due soon OR already past end_date (manual billing only)
  * 2. Charge saved payment methods automatically
  * 3. Extend subscription end dates on successful payment
  * 4. Handle payment failures with grace periods
  * 5. Suspend subscriptions after grace period expires
  * 6. Apply requested pauses (pause_resume_scheduled) - skip charge, set paused
  * 7. Resume paused gym memberships when paused_until has passed - charge and set active
- * 
+ *
  * Run via cron: 0 2 * * * /path/to/node /path/to/scripts/nightly-renewal-job.js
  * Or via AWS EventBridge / Lambda scheduled task
  */
@@ -19,6 +25,16 @@
 require('dotenv').config();
 const Stripe = require('stripe');
 const { initDatabase, Database } = require('../database');
+const {
+  nextGymContractEndYmdDenver,
+  gymBillingAnchorYmdFromMembershipRow,
+  extractYmdFromDbValue,
+  getContractStartEndYmdFromSucceededPaymentIntent,
+  gymContractStartYmdToPersistOnPayment,
+  nextAppSubscriptionEndIsoFromRow
+} = require('../lib/gym-contract-dates');
+const { DateTime } = require('luxon');
+const { AMERICA_DENVER } = require('../lib/mountain-time');
 
 const GRACE_PERIOD_DAYS = 7; // Grace period after payment failure
 const MAX_FAILURE_COUNT = 3; // Maximum failures before requiring manual intervention
@@ -31,6 +47,20 @@ if (!stripeSecretKey) {
   process.exit(1);
 }
 const stripe = new Stripe(stripeSecretKey);
+
+function ymdForIdempotency(value) {
+  const y = extractYmdFromDbValue(value);
+  return y || 'unknown';
+}
+
+/** Next period end after a successful renewal (calendar month in America/Denver). */
+function nextGymContractEndYmdAfterRenewalForMembership(membership) {
+  const endYmd = ymdForIdempotency(membership.contract_end_date);
+  if (endYmd === 'unknown') return null;
+  const anchor = gymBillingAnchorYmdFromMembershipRow(membership);
+  if (!anchor) return null;
+  return nextGymContractEndYmdDenver(endYmd, anchor);
+}
 
 // Subscription tier pricing (in cents)
 const TIER_PRICING = {
@@ -48,11 +78,60 @@ const GYM_MEMBERSHIP_PRICING = {
   'entire_family': 18500           // $185.00/month
 };
 
+/**
+ * Guardrail: block duplicate renewals for the same billing month.
+ * We allow at most one app renewal and one gym renewal per user per Denver month.
+ */
+async function hasMonthlyRenewalCharge(db, { userId, renewalKind, targetYmd }) {
+  if (!userId || !renewalKind || !targetYmd || !/^\d{4}-\d{2}-\d{2}$/.test(String(targetYmd))) {
+    return false;
+  }
+  const tierFilter = renewalKind === 'gym' ? ['gym_membership'] : ['tier_two', 'tier_three', 'tier_four', 'daily', 'weekly', 'monthly'];
+  const statuses = ['succeeded', 'refunded', 'partially_refunded'];
+  if (db.isPostgres) {
+    const hit = await db.queryOne(
+      `SELECT id, tier, status, stripe_payment_intent_id, created_at
+       FROM payments
+       WHERE user_id = $1
+         AND tier = ANY($2::text[])
+         AND status = ANY($3::text[])
+         AND to_char((created_at AT TIME ZONE 'America/Denver')::date, 'YYYY-MM')
+             = to_char(($4::date), 'YYYY-MM')
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [userId, tierFilter, statuses, targetYmd]
+    );
+    return hit || null;
+  }
+  const monthKey = String(targetYmd).slice(0, 7);
+  const placeholders = tierFilter.map(() => '?').join(',');
+  const hit = await db.queryOne(
+    `SELECT id, tier, status, stripe_payment_intent_id, created_at
+     FROM payments
+     WHERE user_id = ?
+       AND tier IN (${placeholders})
+       AND status IN ('succeeded','refunded','partially_refunded')
+       AND strftime('%Y-%m', datetime(created_at, 'localtime')) = ?
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [userId, ...tierFilter, monthKey]
+  );
+  return hit || null;
+}
+
 async function renewSubscription(subscription, db) {
   const subscriptionId = subscription.id;
   const userId = subscription.user_id;
   const tier = subscription.tier;
   const paymentMethodId = subscription.payment_method_id;
+
+  const stripeSubId = subscription.stripe_subscription_id && String(subscription.stripe_subscription_id).trim();
+  if (stripeSubId) {
+    console.log(
+      `  ⏭️  Skipping subscription ${subscriptionId}: Stripe subscription ${stripeSubId} manages billing (manual renewal would double-charge).`
+    );
+    return { success: false, reason: 'stripe_subscription_managed' };
+  }
   
   console.log(`[${DRY_RUN ? 'DRY RUN' : 'LIVE'}] Processing subscription ${subscriptionId} for user ${userId}, tier: ${tier}`);
   
@@ -80,48 +159,72 @@ async function renewSubscription(subscription, db) {
     console.warn(`  ⚠️  No Stripe customer ID for subscription ${subscriptionId}`);
     return { success: false, reason: 'no_customer_id' };
   }
+
+  const appTargetYmd = ymdForIdempotency(subscription.end_date);
+  if (appTargetYmd !== 'unknown') {
+    const existingMonthCharge = await hasMonthlyRenewalCharge(db, {
+      userId,
+      renewalKind: 'app',
+      targetYmd: appTargetYmd
+    });
+    if (existingMonthCharge) {
+      console.warn(
+        `  ⏭️  Guardrail skip (app): user ${userId} already has ${existingMonthCharge.tier}/${existingMonthCharge.status} in ${appTargetYmd.slice(0, 7)} (payment ${existingMonthCharge.stripe_payment_intent_id || existingMonthCharge.id}).`
+      );
+      return { success: false, reason: 'duplicate_monthly_guardrail' };
+    }
+  }
   
   if (DRY_RUN) {
     console.log(`  [DRY RUN] Would charge $${(amount / 100).toFixed(2)} using payment method ${paymentMethodId}`);
-    console.log(`  [DRY RUN] Would extend subscription end_date by 30 days`);
+    console.log(`  [DRY RUN] Would extend subscription end_date by one calendar month (America/Denver)`);
     return { success: true, dryRun: true };
   }
   
   try {
+    const periodKey = ymdForIdempotency(subscription.end_date);
+    const idempotencyKey = `app-manual-renew-sub${subscriptionId}-${periodKey}`.slice(0, 255);
     // Create payment intent with saved payment method
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount,
-      currency: 'usd',
-      customer: stripeCustomerId,
-      payment_method: paymentMethodId,
-      off_session: true, // Important: indicates this is an automatic charge
-      confirm: true, // Automatically confirm the payment
-      metadata: {
-        subscription_id: subscriptionId.toString(),
-        user_id: userId.toString(),
-        tier: tier,
-        type: 'subscription_renewal',
-        renewal_date: new Date().toISOString()
-      }
-    });
+    const paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount: amount,
+        currency: 'usd',
+        customer: stripeCustomerId,
+        payment_method: paymentMethodId,
+        off_session: true, // Important: indicates this is an automatic charge
+        confirm: true, // Automatically confirm the payment
+        metadata: {
+          subscription_id: subscriptionId.toString(),
+          user_id: userId.toString(),
+          tier: tier,
+          type: 'subscription_renewal',
+          renewal_date: new Date().toISOString()
+        }
+      },
+      { idempotencyKey }
+    );
     
     if (paymentIntent.status === 'succeeded') {
       console.log(`  ✅ Payment succeeded: ${paymentIntent.id}`);
       
-      // Extend subscription by 30 days
-      const currentEndDate = new Date(subscription.end_date);
-      const newEndDate = new Date(currentEndDate);
-      newEndDate.setDate(newEndDate.getDate() + 30);
+      const nextEndIso =
+        nextAppSubscriptionEndIsoFromRow(subscription) ||
+        (() => {
+          const currentEndDate = new Date(subscription.end_date);
+          const newEndDate = new Date(currentEndDate);
+          newEndDate.setDate(newEndDate.getDate() + 30);
+          return newEndDate.toISOString();
+        })();
       
       await db.updateSubscription(subscriptionId, {
-        end_date: newEndDate.toISOString(),
+        end_date: nextEndIso,
         status: 'active'
       });
       
       // Reset failure tracking
       await db.resetPaymentFailures(subscriptionId);
       
-      console.log(`  ✅ Subscription extended to ${newEndDate.toISOString().split('T')[0]}`);
+      console.log(`  ✅ Subscription extended to ${String(nextEndIso).split('T')[0]}`);
       
       return { success: true, paymentIntentId: paymentIntent.id };
     } else {
@@ -176,11 +279,15 @@ async function renewGymMembership(membership, db) {
       return { success: true, dryRun: true, reason: 'pause_applied' };
     }
     const now = new Date();
-    const contractEnd = new Date(membership.contract_end_date);
-    const pausedUntil = new Date(contractEnd);
-    pausedUntil.setMonth(pausedUntil.getMonth() + 1);
-    const newContractEnd = pausedUntil.toISOString().split('T')[0];
-    const pausedUntilStr = pausedUntil.toISOString();
+    const endYmd = ymdForIdempotency(membership.contract_end_date);
+    const anchor = gymBillingAnchorYmdFromMembershipRow(membership);
+    const newContractEnd =
+      endYmd !== 'unknown' && anchor ? nextGymContractEndYmdDenver(endYmd, anchor) : null;
+    if (!newContractEnd) {
+      console.error(`  ❌ Could not compute contract_end after pause for membership ${membershipId}`);
+      return { success: false, reason: 'invalid_contract_dates' };
+    }
+    const pausedUntilStr = DateTime.fromISO(newContractEnd, { zone: AMERICA_DENVER }).endOf('day').toUTC().toISO();
     const nowStr = now.toISOString();
     const pausesUsed = (membership.pauses_used_this_contract ?? 0) + 1;
 
@@ -211,64 +318,122 @@ async function renewGymMembership(membership, db) {
         [nowStr, pausedUntilStr, pausesUsed, newContractEnd, membershipId]
       );
     }
-    console.log(`  ✅ Pause applied. Resumes ${pausedUntil.toISOString().split('T')[0]}`);
+    console.log(`  ✅ Pause applied. Resumes ${newContractEnd}`);
     return { success: true, reason: 'pause_applied' };
   }
   
   console.log(`[${DRY_RUN ? 'DRY RUN' : 'LIVE'}] Processing gym membership ${membershipId} for user ${userId}, type: ${membershipType}`);
+
+  const gymStripeSubId = membership.stripe_subscription_id && String(membership.stripe_subscription_id).trim();
+  if (gymStripeSubId) {
+    console.log(
+      `  ⏭️  Skipping gym membership ${membershipId}: Stripe subscription ${gymStripeSubId} manages billing (manual PI would double-charge).`
+    );
+    return { success: false, reason: 'stripe_subscription_managed' };
+  }
   
   if (!paymentMethodId) {
     console.warn(`  ⚠️  No payment method saved for membership ${membershipId}`);
     return { success: false, reason: 'no_payment_method' };
   }
   
-  const amount = (membership.monthly_amount_cents != null && membership.monthly_amount_cents > 0)
+  let amount = (membership.monthly_amount_cents != null && membership.monthly_amount_cents > 0)
     ? membership.monthly_amount_cents
     : (GYM_MEMBERSHIP_PRICING[membershipType] || 6500);
+  if (membership.family_group_id != null && String(membership.family_group_id).trim() !== '') {
+    const summed = await db.getSumMonthlyAmountCentsForFamilyGroup(membership.family_group_id);
+    if (summed > 0) amount = summed;
+  }
   const stripeCustomerId = membership.stripe_customer_id;
   
   if (!stripeCustomerId) {
     console.warn(`  ⚠️  No Stripe customer ID for membership ${membershipId}`);
     return { success: false, reason: 'no_customer_id' };
   }
+
+  const gymTargetYmd = ymdForIdempotency(membership.contract_end_date);
+  if (gymTargetYmd !== 'unknown') {
+    const existingMonthCharge = await hasMonthlyRenewalCharge(db, {
+      userId,
+      renewalKind: 'gym',
+      targetYmd: gymTargetYmd
+    });
+    if (existingMonthCharge) {
+      console.warn(
+        `  ⏭️  Guardrail skip (gym): user ${userId} already has gym charge ${existingMonthCharge.status} in ${gymTargetYmd.slice(0, 7)} (payment ${existingMonthCharge.stripe_payment_intent_id || existingMonthCharge.id}).`
+      );
+      return { success: false, reason: 'duplicate_monthly_guardrail' };
+    }
+  }
+
+  const nextEndPreview = nextGymContractEndYmdAfterRenewalForMembership(membership);
+  if (!nextEndPreview) {
+    console.error(
+      `  ❌ Skipping renewal charge for membership ${membershipId}: contract_end_date or billing anchor missing/invalid (contract_end_date=${membership.contract_end_date})`
+    );
+    return { success: false, reason: 'invalid_contract_end_date' };
+  }
   
   if (DRY_RUN) {
     console.log(`  [DRY RUN] Would charge $${(amount / 100).toFixed(2)} using payment method ${paymentMethodId}`);
-    console.log(`  [DRY RUN] Would extend contract_end_date by 1 month`);
+    console.log(`  [DRY RUN] Would extend contract_end_date by one calendar month (America/Denver)`);
     return { success: true, dryRun: true };
   }
   
   try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount,
-      currency: 'usd',
-      customer: stripeCustomerId,
-      payment_method: paymentMethodId,
-      off_session: true,
-      confirm: true,
-      metadata: {
-        membership_id: membershipId.toString(),
-        user_id: userId.toString(),
-        membership_type: membershipType,
-        type: 'gym_membership_renewal',
-        renewal_date: new Date().toISOString()
-      }
-    });
+    const periodKey = ymdForIdempotency(membership.contract_end_date);
+    const idempotencyKey = `gym-manual-renew-m${membershipId}-${periodKey}`.slice(0, 255);
+    const paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount: amount,
+        currency: 'usd',
+        customer: stripeCustomerId,
+        payment_method: paymentMethodId,
+        off_session: true,
+        confirm: true,
+        metadata: {
+          membership_id: membershipId.toString(),
+          userId: userId.toString(),
+          user_id: userId.toString(),
+          membership_type: membershipType,
+          type: 'gym_membership_renewal',
+          renewal_date: new Date().toISOString()
+        }
+      },
+      { idempotencyKey }
+    );
     
     if (paymentIntent.status === 'succeeded') {
       console.log(`  ✅ Payment succeeded: ${paymentIntent.id}`);
       
-      // Extend contract by 1 month
-      const currentEndDate = new Date(membership.contract_end_date);
-      const newEndDate = new Date(currentEndDate);
-      newEndDate.setMonth(newEndDate.getMonth() + 1);
-      
-      await db.query(
-        db.isPostgres
-          ? 'UPDATE gym_memberships SET contract_end_date = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2'
-          : 'UPDATE gym_memberships SET contract_end_date = ?, updated_at = datetime(\'now\') WHERE id = ?',
-        [newEndDate.toISOString().split('T')[0], membershipId]
-      );
+      const newContractEndStr = nextEndPreview;
+      let startPersist = null;
+      try {
+        const piFull = await stripe.paymentIntents.retrieve(paymentIntent.id, { expand: ['latest_charge'] });
+        const { contractStartYmd } = await getContractStartEndYmdFromSucceededPaymentIntent(stripe, piFull);
+        startPersist = gymContractStartYmdToPersistOnPayment(membership, contractStartYmd);
+      } catch (_) {
+        startPersist = gymContractStartYmdToPersistOnPayment(membership, null);
+      }
+      const isPrimaryHousehold =
+        (membership.is_primary_member === true || membership.is_primary_member === 1) &&
+        membership.family_group_id != null &&
+        String(membership.family_group_id).trim() !== '';
+      if (isPrimaryHousehold) {
+        await db.query(
+          db.isPostgres
+            ? 'UPDATE gym_memberships SET contract_end_date = $1, contract_start_date = COALESCE($2::date, contract_start_date), updated_at = CURRENT_TIMESTAMP WHERE family_group_id = $3'
+            : 'UPDATE gym_memberships SET contract_end_date = ?, contract_start_date = COALESCE(?, contract_start_date), updated_at = datetime(\'now\') WHERE family_group_id = ?',
+          [newContractEndStr, startPersist, membership.family_group_id]
+        );
+      } else {
+        await db.query(
+          db.isPostgres
+            ? 'UPDATE gym_memberships SET contract_end_date = $1, contract_start_date = COALESCE($2::date, contract_start_date), updated_at = CURRENT_TIMESTAMP WHERE id = $3'
+            : 'UPDATE gym_memberships SET contract_end_date = ?, contract_start_date = COALESCE(?, contract_start_date), updated_at = datetime(\'now\') WHERE id = ?',
+          [newContractEndStr, startPersist, membershipId]
+        );
+      }
       
       // Reset failure tracking
       await db.resetGymMembershipPaymentFailures(membershipId);
@@ -280,7 +445,7 @@ async function renewGymMembership(membership, db) {
         if (e.code !== '23505' && !/unique|duplicate/i.test(e.message || '')) console.warn('  Could not record gym payment:', e.message);
       }
       
-      console.log(`  ✅ Membership extended to ${newEndDate.toISOString().split('T')[0]}`);
+      console.log(`  ✅ Membership extended to ${newContractEndStr}`);
       
       return { success: true, paymentIntentId: paymentIntent.id };
     } else {
@@ -325,42 +490,89 @@ async function resumePausedGymMembership(membership, db) {
 
   console.log(`[${DRY_RUN ? 'DRY RUN' : 'LIVE'}] Resuming paused gym membership ${membershipId} for user ${userId}`);
 
+  const resumeStripeSubId = membership.stripe_subscription_id && String(membership.stripe_subscription_id).trim();
+  if (resumeStripeSubId) {
+    console.log(
+      `  ⏭️  Skipping resume charge for membership ${membershipId}: Stripe subscription ${resumeStripeSubId} manages billing.`
+    );
+    return { success: false, reason: 'stripe_subscription_managed' };
+  }
+
   if (!paymentMethodId || !stripeCustomerId) {
     console.warn(`  ⚠️  No payment method or Stripe customer for membership ${membershipId}`);
     return { success: false, reason: 'no_payment_method' };
   }
 
-  const amount = (membership.monthly_amount_cents != null && membership.monthly_amount_cents > 0)
+  let amount = (membership.monthly_amount_cents != null && membership.monthly_amount_cents > 0)
     ? membership.monthly_amount_cents
     : (GYM_MEMBERSHIP_PRICING[membershipType] || 6500);
+  if (membership.family_group_id != null && String(membership.family_group_id).trim() !== '') {
+    const summed = await db.getSumMonthlyAmountCentsForFamilyGroup(membership.family_group_id);
+    if (summed > 0) amount = summed;
+  }
+
+  const resumeNextEndPreview = nextGymContractEndYmdAfterRenewalForMembership(membership);
+  if (!resumeNextEndPreview) {
+    console.error(
+      `  ❌ Skipping resume charge for membership ${membershipId}: contract_end_date or billing anchor missing/invalid`
+    );
+    return { success: false, reason: 'invalid_contract_end_date' };
+  }
 
   if (DRY_RUN) {
     console.log(`  [DRY RUN] Would charge $${(amount / 100).toFixed(2)} and resume membership`);
     return { success: true, dryRun: true };
   }
 
-  try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency: 'usd',
-      customer: stripeCustomerId,
-      payment_method: paymentMethodId,
-      off_session: true,
-      confirm: true,
-      metadata: {
-        membership_id: membershipId.toString(),
-        user_id: userId.toString(),
-        membership_type: membershipType,
-        type: 'gym_membership_renewal',
-        renewal_date: new Date().toISOString()
-      }
+  const resumeTargetYmd = ymdForIdempotency(membership.contract_end_date);
+  if (resumeTargetYmd !== 'unknown') {
+    const existingMonthCharge = await hasMonthlyRenewalCharge(db, {
+      userId,
+      renewalKind: 'gym',
+      targetYmd: resumeTargetYmd
     });
+    if (existingMonthCharge) {
+      console.warn(
+        `  ⏭️  Guardrail skip (gym resume): user ${userId} already has gym charge ${existingMonthCharge.status} in ${resumeTargetYmd.slice(0, 7)} (payment ${existingMonthCharge.stripe_payment_intent_id || existingMonthCharge.id}).`
+      );
+      return { success: false, reason: 'duplicate_monthly_guardrail' };
+    }
+  }
+
+  try {
+    const resumePeriodKey = ymdForIdempotency(membership.paused_until || membership.contract_end_date);
+    const resumeIdemKey = `gym-manual-resume-m${membershipId}-${resumePeriodKey}`.slice(0, 255);
+    const paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount,
+        currency: 'usd',
+        customer: stripeCustomerId,
+        payment_method: paymentMethodId,
+        off_session: true,
+        confirm: true,
+        metadata: {
+          membership_id: membershipId.toString(),
+          userId: userId.toString(),
+          user_id: userId.toString(),
+          membership_type: membershipType,
+          type: 'gym_membership_resume',
+          renewal_date: new Date().toISOString()
+        }
+      },
+      { idempotencyKey: resumeIdemKey }
+    );
 
     if (paymentIntent.status === 'succeeded') {
-      const currentEndDate = new Date(membership.contract_end_date);
-      const newEndDate = new Date(currentEndDate);
-      newEndDate.setMonth(newEndDate.getMonth() + 1);
-      const newContractEnd = newEndDate.toISOString().split('T')[0];
+      const newContractEnd = resumeNextEndPreview;
+
+      let resumeStartPersist = null;
+      try {
+        const piFull = await stripe.paymentIntents.retrieve(paymentIntent.id, { expand: ['latest_charge'] });
+        const { contractStartYmd } = await getContractStartEndYmdFromSucceededPaymentIntent(stripe, piFull);
+        resumeStartPersist = gymContractStartYmdToPersistOnPayment(membership, contractStartYmd);
+      } catch (_) {
+        resumeStartPersist = gymContractStartYmdToPersistOnPayment(membership, null);
+      }
 
       if (db.isPostgres) {
         await db.query(
@@ -369,9 +581,10 @@ async function resumePausedGymMembership(membership, db) {
             paused_at = NULL,
             paused_until = NULL,
             contract_end_date = $1,
+            contract_start_date = COALESCE($2::date, contract_start_date),
             updated_at = CURRENT_TIMESTAMP
-           WHERE id = $2`,
-          [newContractEnd, membershipId]
+           WHERE id = $3`,
+          [newContractEnd, resumeStartPersist, membershipId]
         );
       } else {
         await db.query(
@@ -380,9 +593,10 @@ async function resumePausedGymMembership(membership, db) {
             paused_at = NULL,
             paused_until = NULL,
             contract_end_date = ?,
+            contract_start_date = COALESCE(?, contract_start_date),
             updated_at = datetime('now')
            WHERE id = ?`,
-          [newContractEnd, membershipId]
+          [newContractEnd, resumeStartPersist, membershipId]
         );
       }
 
@@ -464,10 +678,22 @@ async function main() {
   console.log(`${DRY_RUN ? 'DRY RUN MODE' : 'LIVE MODE'} - Nightly Renewal Job`);
   console.log(`Started at: ${new Date().toISOString()}`);
   console.log('='.repeat(60));
-  
-  const db = new Database();
-  await db.init();
-  
+
+  let dbConnection;
+  dbConnection = await initDatabase();
+  const db = new Database(dbConnection);
+
+  const lockOk = await db.acquireRenewalJobLock();
+  if (!lockOk) {
+    console.log('[RENEWAL JOB] Another instance holds the renewal lock (Postgres advisory lock). Exiting to avoid duplicate charges.');
+    if (dbConnection && typeof dbConnection.end === 'function') {
+      await dbConnection.end();
+    } else if (dbConnection && typeof dbConnection.close === 'function') {
+      dbConnection.close();
+    }
+    return;
+  }
+
   try {
     // Get subscriptions expiring soon
     console.log('\n=== Processing App Subscriptions ===');
@@ -531,12 +757,17 @@ async function main() {
   } catch (error) {
     console.error('\n❌ Fatal error in renewal job:', error);
     console.error(error.stack);
-    process.exit(1);
+    throw error;
   } finally {
-    if (connection && typeof connection.end === 'function') {
-      await connection.end();
-    } else if (connection && typeof connection.close === 'function') {
-      connection.close();
+    try {
+      await db.releaseRenewalJobLock();
+    } catch (e) {
+      /* ignore */
+    }
+    if (dbConnection && typeof dbConnection.end === 'function') {
+      await dbConnection.end();
+    } else if (dbConnection && typeof dbConnection.close === 'function') {
+      dbConnection.close();
     }
   }
 }

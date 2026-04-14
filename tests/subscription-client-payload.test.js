@@ -216,6 +216,34 @@ describe('Subscription Client Payload', () => {
     expect(updatedEnd).to.be.a('string');
   });
 
+  it('treats Stripe canceled as active UI when DB subscription is active with future end_date', async () => {
+    const stripe = makeStripeMock({
+      sub: {
+        status: 'canceled',
+        trial_end: null,
+        current_period_end: Math.floor(Date.now() / 1000) - 86400,
+        customer: 'cus_x',
+        items: { data: [{ price: { id: 'price_1SUwH8F0CLysN1jAvy1aMz3E' } }] }
+      },
+      cards: [{ id: 'pm_1' }]
+    });
+    const db = { updateSubscription: async () => ({ changes: 1 }) };
+    const subscription = {
+      id: 85,
+      tier: 'tier_four',
+      status: 'active',
+      end_date: new Date(Date.now() + 86400000 * 30).toISOString(),
+      stripe_subscription_id: 'sub_stale_canceled'
+    };
+    const user = { role: 'user' };
+
+    const payload = await buildSubscriptionClientPayload(stripe, db, subscription, user);
+    expect(payload.stripe_status).to.equal('active');
+    expect(payload.stripe_status_raw).to.equal('canceled');
+    expect(payload.app_status_display).to.equal('Active');
+    expect(payload.tier).to.equal('tier_four');
+  });
+
   it('treats database-only Tier One (no Stripe) as free trial for UI', async () => {
     const stripe = { subscriptions: { retrieve: async () => { throw new Error('no sub'); } } };
     const db = {};

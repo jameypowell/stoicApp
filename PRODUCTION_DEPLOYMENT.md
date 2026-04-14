@@ -1,144 +1,115 @@
 # Production Deployment Guide
 
-## ✅ Implementation Complete
+## Implementation overview
 
-All code changes have been implemented:
+Relevant production behavior today:
 
-1. ✅ **Google OAuth Authentication** - Routes and frontend buttons added
-2. ✅ **Stripe Subscriptions** - Payment flow converted to use recurring subscriptions
-3. ✅ **Webhook Handlers** - All subscription events (created, updated, deleted, renewals) handled
+1. **Google OAuth** — Routes and frontend for sign-in / sign-up.
+2. **App paid tiers** — Checkout uses **Stripe PaymentIntents** plus **`subscriptions` rows in your database** (`stripe_subscription_id` is null for normal PI-based app billing). Renewals use saved payment methods and your **nightly renewal job** (or explicit app logic), not Stripe Subscription invoices for new signups.
+3. **Webhooks** — Handle `payment_intent.succeeded` for app tiers, plus `customer.subscription.*` and `invoice.*` for **legacy** app rows that still have a Stripe subscription ID, and for **gym** flows that use Stripe subscriptions where applicable.
 
-## 📋 Environment Variables to Set
+## Environment variables to set
 
 ### Google OAuth
+
 ```
 GOOGLE_OAUTH_CLIENT_ID=YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=YOUR_GOOGLE_OAUTH_CLIENT_SECRET
 GOOGLE_REDIRECT_URI_PROD=https://app.stoic-fit.com/auth/google/callback
 ```
 
-### Stripe Production
+### Stripe production
+
 ```
 STRIPE_PUBLISHABLE_KEY=YOUR_STRIPE_PUBLISHABLE_KEY
 STRIPE_SECRET_KEY=YOUR_STRIPE_SECRET_KEY
 STRIPE_WEBHOOK_SECRET=YOUR_STRIPE_WEBHOOK_SECRET
 ```
 
-### Stripe Price IDs (for recurring subscriptions)
+### Stripe Price IDs (optional / legacy)
+
+These map to tier-two / tier-three / tier-four in older naming (`STRIPE_PRICE_DAILY`, etc.). Some scripts or Stripe-linked tooling may still reference them. **App tier checkout amounts** are defined in code (`TIER_PRICING` in `payments.js`), not by loading these prices for `POST /payments/create-intent`.
+
 ```
 STRIPE_PRICE_DAILY=price_1SUwEpF0CLysN1jANPvhIp7s
 STRIPE_PRICE_WEEKLY=price_1SUwG8F0CLysN1jA367NrtiT
 STRIPE_PRICE_MONTHLY=price_1SUwH8F0CLysN1jAvy1aMz3E
 ```
 
-### Billing Mode
+You may also set `STRIPE_PRICE_TIER_TWO`, `STRIPE_PRICE_TIER_THREE`, `STRIPE_PRICE_TIER_FOUR` if you prefer explicit names; legacy vars are still supported as fallbacks elsewhere.
+
+### Billing mode
+
 ```
-BILLING_MODE=stripe_subscriptions
+BILLING_MODE=one_time
 ```
 
-## 🚀 Deployment Steps
+`POST /payments/create-intent` always uses **PaymentIntents** for app tiers (no Stripe Subscription checkout branch). Keeping `BILLING_MODE=one_time` matches the automated env script and documents intent for anyone reading the task definition.
 
-### Option 1: Automated Script (Recommended)
+## Deployment steps
 
-Run the automated script to update all environment variables:
+### Option 1: Automated script (recommended)
 
 ```bash
 ./scripts/update_production_env.sh
 ```
 
-This will:
-1. Update Google OAuth credentials
-2. Update Stripe production keys
-3. Update Stripe Price IDs
-4. Set billing mode to `stripe_subscriptions`
-5. Trigger ECS service update
+This script updates Google OAuth, Stripe keys, optional price IDs, sets **`BILLING_MODE=one_time`**, and triggers an ECS service update (per script contents).
 
-### Option 2: Manual Update
+### Option 2: Manual update
 
-Use the Python script to update variables individually:
+Use the Python helper to set variables individually. Example for billing mode:
 
 ```bash
-# Google OAuth
 python3 scripts/update_ecs_env_vars.py \
   --region us-east-1 \
   --cluster stoic-fitness-app \
   --service stoic-fitness-service \
   --container stoic-fitness-app \
-  --set GOOGLE_OAUTH_CLIENT_ID=YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com \
-  --set GOOGLE_OAUTH_CLIENT_SECRET=YOUR_GOOGLE_OAUTH_CLIENT_SECRET \
-  --set GOOGLE_REDIRECT_URI_PROD=https://app.stoic-fit.com/auth/google/callback
-
-# Stripe Keys
-python3 scripts/update_ecs_env_vars.py \
-  --region us-east-1 \
-  --cluster stoic-fitness-app \
-  --service stoic-fitness-service \
-  --container stoic-fitness-app \
-  --set STRIPE_PUBLISHABLE_KEY=YOUR_STRIPE_PUBLISHABLE_KEY \
-  --set STRIPE_SECRET_KEY=YOUR_STRIPE_SECRET_KEY \
-  --set STRIPE_WEBHOOK_SECRET=YOUR_STRIPE_WEBHOOK_SECRET
-
-# Price IDs
-python3 scripts/update_ecs_env_vars.py \
-  --region us-east-1 \
-  --cluster stoic-fitness-app \
-  --service stoic-fitness-service \
-  --container stoic-fitness-app \
-  --set STRIPE_PRICE_DAILY=price_1SUwEpF0CLysN1jANPvhIp7s \
-  --set STRIPE_PRICE_WEEKLY=price_1SUwG8F0CLysN1jA367NrtiT \
-  --set STRIPE_PRICE_MONTHLY=price_1SUwH8F0CLysN1jAvy1aMz3E
-
-# Billing Mode
-python3 scripts/update_ecs_env_vars.py \
-  --region us-east-1 \
-  --cluster stoic-fitness-app \
-  --service stoic-fitness-service \
-  --container stoic-fitness-app \
-  --set BILLING_MODE=stripe_subscriptions
+  --set BILLING_MODE=one_time
 ```
 
-## ✅ Verification Checklist
+Repeat the same pattern for Google OAuth, Stripe keys, and price IDs as needed (see script source for the full `--set` list).
 
-After deployment, verify:
+## Verification checklist
+
+After deployment:
 
 - [ ] Google OAuth login works
 - [ ] Google OAuth signup works
 - [ ] Email/password login still works
-- [ ] Stripe subscription creation works
-- [ ] Subscription appears in Stripe Dashboard
-- [ ] Webhook events are received (check CloudWatch logs)
-- [ ] Subscription auto-renewal works (test after first billing period)
-- [ ] Subscription cancellation works
+- [ ] Choosing a **paid app tier** creates a **PaymentIntent** (Stripe Dashboard → Payments), not a new **Subscription** for that checkout
+- [ ] After pay + confirm, user has an active row in **`subscriptions`** with correct **`tier`** and **`end_date`** (and typically **`stripe_subscription_id`** empty for PI-only signups)
+- [ ] Webhook **`payment_intent.succeeded`** appears in logs for successful app checkouts
+- [ ] **Renewal**: paid tiers with a saved **`payment_method_id`** renew via your **nightly job** (off-session PI), not via a new Stripe Subscription invoice—unless that user is a **legacy** row still tied to a Stripe subscription
+- [ ] **Cancel**: user cancel updates the DB; if a legacy **`stripe_subscription_id`** exists, Stripe is canceled too
 
-## 🔍 Testing
+## Testing
 
-### Test Google OAuth
-1. Go to production site
-2. Click "Sign in with Google"
-3. Complete OAuth flow
-4. Verify you're logged in
+### Google OAuth
 
-### Test Stripe Subscription
-1. Log in (Google or email/password)
-2. Select a subscription tier
-3. Complete payment
-4. Verify subscription is created in Stripe Dashboard
-5. Verify subscription appears in your account
+1. Open the production app URL.
+2. Use **Sign in with Google** and complete the flow.
+3. Confirm you are logged in.
 
-### Test Webhooks
-1. Check CloudWatch logs for webhook events
-2. Verify `customer.subscription.created` event is received
-3. Verify subscription is stored in database
+### App tier checkout (PaymentIntent)
 
-## 📝 Notes
+1. Log in (Google or email/password).
+2. Open the subscription / plan UI and choose a **paid** tier.
+3. Complete payment with the Payment Element.
+4. In Stripe Dashboard, confirm a **PaymentIntent** succeeded for the customer.
+5. Confirm **`subscriptions`** in the database reflects the new tier and period (and `/subscriptions/me` in the app).
 
-- **Local Development**: Keep test keys in `.env` file
-- **Production**: All keys are in ECS task definition
-- **Webhooks**: Make sure webhook endpoint is configured in Stripe Dashboard
-- **OAuth Consent Screen**: Must be published or have test users added
+### Webhooks
 
+1. Check CloudWatch (or your log sink) for webhook delivery.
+2. For PI-based app payments, confirm **`payment_intent.succeeded`** is processed.
+3. For legacy app rows or gym subscription flows, **`customer.subscription.*`** / **`invoice.*`** may still appear; that is expected where Stripe subscriptions remain in use.
 
+## Notes
 
-
-
+- **Local development**: Use test keys in `.env` (never commit real secrets).
+- **Production**: Secrets live on the ECS task definition (prefer AWS Secrets Manager for rotation).
+- **Stripe webhooks**: Endpoint must match your deployed URL and use the correct **webhook signing secret**.
+- **OAuth consent screen**: Must be published or test users must be added for production Google sign-in.
 

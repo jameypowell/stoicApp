@@ -3,7 +3,7 @@
  * Set via environment variables - see README.md for required vars.
  */
 
-require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env'), override: true });
 
 const config = {
   // Production API base URL (required for API and webhook tests)

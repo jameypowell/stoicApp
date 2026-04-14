@@ -6,13 +6,28 @@
   "scripts": {
     "start": "node server.js",
     "dev": "NODE_ENV=development node scripts/dev-with-webhooks.js",
-    "test": "mocha tests/**/*.test.js --timeout 10000",
+    "test": "node --test tests/gym-contract-dates.test.js && mocha tests/**/*.test.js --ignore tests/gym-contract-dates.test.js --timeout 10000",
+    "test:billing": "node --test tests/gym-contract-dates.test.js",
     "test:production": "node scripts/production-tests/index.js",
     "audit:app-gym": "node scripts/audit-app-gym-consistency.js",
+    "audit:stripe-drift": "node scripts/audit-stripe-subscription-drift.js",
+    "ensure:app-only-billing": "node scripts/ensure-app-only-billing.js",
+    "audit:30d-billing": "node scripts/audit-30d-billing-duplicates.js",
+    "renewal:dry-run": "RENEWAL_DRY_RUN=true node scripts/nightly-renewal-job.js",
+    "audit:gym-calendar-drift": "node scripts/audit-gym-calendar-billing-drift.js",
+    "audit:gym-calendar-drift:monthly": "node scripts/audit-gym-calendar-billing-drift.js --outliers-only",
+    "audit:gym-repeat-renewals": "node scripts/audit-gym-renewal-repeat-charges.js --days 30",
+    "audit:gym-repeat-renewals:strict": "node scripts/audit-gym-renewal-repeat-charges.js --days 30 --include-refunded",
+    "verify:stripe-refund-webhook": "node scripts/verify-charge-refunded-webhook.js",
+    "verify:refunds-in-db": "node scripts/verify-refund-events-vs-payments.js",
+    "backfill:payment-refund-status": "node scripts/backfill-payment-refund-status-from-stripe.js",
     "test:watch": "mocha tests/**/*.test.js --watch --timeout 10000",
     "dedupe:phase1": "node scripts/deduplicatePhaseOneStrengthWorkouts.js",
     "validate:phase1": "node scripts/validatePhaseOneWorkout.js",
-    "dev:server": "NODE_ENV=development nodemon server.js"
+    "dev:server": "NODE_ENV=development nodemon server.js",
+    "dev:server:node18": "NODE_ENV=development bash scripts/with-node18.sh nodemon server.js",
+    "test:node18": "bash scripts/with-node18.sh npm test",
+    "test:local:full": "bash scripts/run-local-full-test.sh"
   },
   "keywords": [
     "shop",
@@ -21,6 +36,9 @@
   ],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=18 <19"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

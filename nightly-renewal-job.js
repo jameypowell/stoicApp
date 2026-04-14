@@ -178,6 +178,7 @@ async function runNightlyRenewalJob() {
         WHERE u.role = 'user'
           AND s.tier IN ('tier_two', 'tier_three', 'tier_four', 'daily', 'weekly', 'monthly')
           AND s.status = 'active'
+          AND (s.stripe_subscription_id IS NULL OR TRIM(s.stripe_subscription_id::text) = '')
           AND s.end_date < NOW()
         ORDER BY s.end_date ASC
       `
@@ -202,6 +203,7 @@ async function runNightlyRenewalJob() {
         WHERE u.role = 'user'
           AND s.tier IN ('tier_two', 'tier_three', 'tier_four', 'daily', 'weekly', 'monthly')
           AND s.status = 'active'
+          AND (s.stripe_subscription_id IS NULL OR TRIM(s.stripe_subscription_id) = '')
           AND s.end_date < datetime('now')
         ORDER BY s.end_date ASC
       `;

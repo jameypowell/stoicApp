@@ -4,6 +4,8 @@ window.token = token; // Make available globally
 let stripe = null;
 // Track whether we have a pending anonymous drop-in flow from the home page
 let pendingDropIn = false;
+/** Must match lib/drop-in-pricing.js (Stripe PI amount uses server constant). */
+const DROP_IN_FEE_DISPLAY = '$8.00';
 let stripeElements = null;
 let paymentIntent = null;
 let currentTier = null;
@@ -1094,6 +1096,8 @@ window.API_BASE = API_BASE; // Make available globally
 // App base URL (where the dashboard lives). Defaults to current origin root,
 // but can be overridden via window.APP_BASE_URL for custom setups.
 const APP_BASE_URL = window.APP_BASE_URL || (window.location.origin + '/');
+// Bump to force a one-time fresh login session after deploy.
+const REQUIRED_SESSION_VERSION = '20260410-force-session-refresh';
 function getAppBaseUrl() {
     const host = String(window.location.hostname || '').toLowerCase();
     const isLocal =
@@ -1104,6 +1108,33 @@ function getAppBaseUrl() {
     // In local dev, always stay on local origin after login.
     if (isLocal) return window.location.origin + '/';
     return APP_BASE_URL;
+}
+
+function enforceRequiredSessionVersion() {
+    try {
+        const key = 'app_session_version';
+        const current = localStorage.getItem(key);
+        if (current === REQUIRED_SESSION_VERSION) return false;
+
+        // Force a fresh login session once for this deployed version.
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.setItem(key, REQUIRED_SESSION_VERSION);
+        token = null;
+        window.token = null;
+        currentUser = null;
+
+        const url = new URL(window.location.href);
+        const marker = url.searchParams.get('_newsession');
+        if (marker !== REQUIRED_SESSION_VERSION) {
+            url.searchParams.set('_newsession', REQUIRED_SESSION_VERSION);
+            window.location.replace(url.toString());
+            return true;
+        }
+    } catch (e) {
+        console.warn('Session refresh gate skipped:', e && e.message);
+    }
+    return false;
 }
 
 // Initialize Stripe when page loads
@@ -1134,12 +1165,20 @@ async function initStripe() {
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
+    if (enforceRequiredSessionVersion()) {
+        return;
+    }
     initStripe();
     
     // Clean up _refresh parameter from URL if present (from hard refresh after login)
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('_refresh')) {
         urlParams.delete('_refresh');
+        const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+        window.history.replaceState({}, document.title, newUrl);
+    }
+    if (urlParams.has('_newsession')) {
+        urlParams.delete('_newsession');
         const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
         window.history.replaceState({}, document.title, newUrl);
     }
@@ -1317,7 +1356,8 @@ async function tryDropInFromStorage() {
             },
             body: JSON.stringify({
                 email: emailVal.trim(),
-                waiverSignature: sigVal
+                waiverSignature: sigVal,
+                visitorName: sigVal
             })
         });
         const data = await resp.json();
@@ -1327,6 +1367,7 @@ async function tryDropInFromStorage() {
         if (!data.clientSecret) {
             throw new Error('Payment system not ready. Please try again.');
         }
+        const dropInDisplay = (data.amountDisplay && String(data.amountDisplay).trim()) || DROP_IN_FEE_DISPLAY;
         sessionStorage.removeItem('dropinEmail');
         sessionStorage.removeItem('dropinSignature');
 
@@ -1343,7 +1384,7 @@ async function tryDropInFromStorage() {
         const errorDiv = document.getElementById('paymentError');
         const submitBtn = document.getElementById('payButton');
         const modalTitle = modal?.querySelector('.modal-content h2');
-        if (modalTitle) modalTitle.textContent = 'Complete Drop-In Payment ($5.00)';
+        if (modalTitle) modalTitle.textContent = 'Complete Drop-In Payment (' + dropInDisplay + ')';
         paymentElementContainer.innerHTML = '';
         errorDiv.classList.remove('show');
         errorDiv.textContent = '';
@@ -1352,7 +1393,7 @@ async function tryDropInFromStorage() {
         stripeElements = stripe.elements({ clientSecret: data.clientSecret });
         const paymentElement = stripeElements.create('payment');
         paymentElement.mount('#paymentElement');
-        submitBtn.textContent = 'Pay $5.00';
+        submitBtn.textContent = 'Pay ' + dropInDisplay;
         submitBtn.onclick = handlePayment;
     } catch (err) {
         console.error('Drop-in from storage error:', err);
@@ -1494,11 +1535,13 @@ function setupAdminTabs() {
     const adminUsersContent = document.getElementById('adminUsersContent');
     const adminWorkoutsContent = document.getElementById('adminWorkoutsContent');
     const adminDropInsContent = document.getElementById('adminDropInsContent');
+    const adminBuddyPassesContent = document.getElementById('adminBuddyPassesContent');
     const adminBannerContent = document.getElementById('adminBannerContent');
     const adminHealthContent = document.getElementById('adminHealthContent');
     const adminErrorLogsContent = document.getElementById('adminErrorLogsContent');
     const adminWorkoutsTab = document.getElementById('adminWorkoutsTab');
     const adminDropInsTab = document.getElementById('adminDropInsTab');
+    const adminBuddyPassesTab = document.getElementById('adminBuddyPassesTab');
     const adminFreeTrialsTab = document.getElementById('adminFreeTrialsTab');
     const adminFreeTrialsContent = document.getElementById('adminFreeTrialsContent');
     const adminMembersTab = document.getElementById('adminMembersTab');
@@ -1519,6 +1562,9 @@ function setupAdminTabs() {
     }
     if (adminDropInsTab && currentUser) {
         adminDropInsTab.style.display = currentUser.role === 'admin' ? 'block' : 'none';
+    }
+    if (adminBuddyPassesTab && currentUser) {
+        adminBuddyPassesTab.style.display = currentUser.role === 'admin' ? 'block' : 'none';
     }
     if (adminFreeTrialsTab && currentUser) {
         adminFreeTrialsTab.style.display = currentUser.role === 'admin' ? 'block' : 'none';
@@ -1559,6 +1605,7 @@ function setupAdminTabs() {
             if (adminUsersContent) adminUsersContent.style.display = 'none';
             if (adminWorkoutsContent) adminWorkoutsContent.style.display = 'none';
             if (adminDropInsContent) adminDropInsContent.style.display = 'none';
+            if (adminBuddyPassesContent) adminBuddyPassesContent.style.display = 'none';
             if (adminFreeTrialsContent) adminFreeTrialsContent.style.display = 'none';
             if (adminBannerContent) adminBannerContent.style.display = 'none';
             if (adminHealthContent) adminHealthContent.style.display = 'none';
@@ -1572,6 +1619,7 @@ function setupAdminTabs() {
             // Show selected tab content
             if (tabName === 'users' && adminUsersContent) {
                 adminUsersContent.style.display = 'block';
+                loadAdminLoginCodeRequests();
             } else if (tabName === 'groups' && adminGroupsContent) {
                 adminGroupsContent.style.display = 'block';
                 loadAdminDiscountGroups();
@@ -1585,10 +1633,13 @@ function setupAdminTabs() {
                 loadAppSubsAdmin();
             } else if (tabName === 'transactions' && adminTransactionsContent) {
                 adminTransactionsContent.style.display = 'block';
-                loadAdminTransactionsUpcoming();
+                loadAdminCurrentMonthTransactions();
             } else if (tabName === 'drop-ins' && adminDropInsContent) {
                 adminDropInsContent.style.display = 'block';
                 loadDropIns();
+            } else if (tabName === 'buddy-passes' && adminBuddyPassesContent) {
+                adminBuddyPassesContent.style.display = 'block';
+                loadAdminBuddyPasses();
             } else if (tabName === 'free-trials' && adminFreeTrialsContent) {
                 adminFreeTrialsContent.style.display = 'block';
                 loadFreeTrials();
@@ -1611,6 +1662,8 @@ function setupAdminTabs() {
     // Drop Ins refresh button and filter
     const refreshDropInsBtn = document.getElementById('refreshDropInsBtn');
     if (refreshDropInsBtn) refreshDropInsBtn.onclick = loadDropIns;
+    const refreshBuddyPassesBtn = document.getElementById('refreshBuddyPassesBtn');
+    if (refreshBuddyPassesBtn) refreshBuddyPassesBtn.onclick = loadAdminBuddyPasses;
     const dropInsFilter = document.getElementById('dropInsFilter');
     if (dropInsFilter) dropInsFilter.addEventListener('change', loadDropIns);
 
@@ -1629,19 +1682,22 @@ function setupAdminTabs() {
     if (refreshGroupsBtn) {
         refreshGroupsBtn.onclick = loadAdminDiscountGroups;
     }
+    const refreshLoginCodeRequestsBtn = document.getElementById('refreshLoginCodeRequestsBtn');
+    if (refreshLoginCodeRequestsBtn) {
+        refreshLoginCodeRequestsBtn.onclick = () => { loadAdminLoginCodeRequests(); };
+    }
     const refreshAppSubsBtn = document.getElementById('refreshAppSubsBtn');
     if (refreshAppSubsBtn) {
         refreshAppSubsBtn.onclick = loadAppSubsAdmin;
     }
     const refreshTransactionsBtn = document.getElementById('refreshTransactionsBtn');
     if (refreshTransactionsBtn) {
-        refreshTransactionsBtn.onclick = () => {
-            const past = document.getElementById('transactionsPastContainer');
-            if (past && past.style.display !== 'none') loadAdminTransactionsPast();
-            else loadAdminTransactionsUpcoming();
-        };
+        refreshTransactionsBtn.onclick = () => loadAdminCurrentMonthTransactions();
     }
-    setupAdminTransactionsSubtabs();
+    const adminTransactionsMonthPicker = document.getElementById('adminTransactionsMonthPicker');
+    if (adminTransactionsMonthPicker) {
+        adminTransactionsMonthPicker.addEventListener('change', () => loadAdminCurrentMonthTransactions());
+    }
 
     // Banner form and Health tab
     setupAdminBannerForm();
@@ -1773,8 +1829,9 @@ async function loadDropIns() {
         const rows = payments.map(p => {
             const date = p.created_at ? new Date(p.created_at).toLocaleString('en-US', { timeZone: 'America/Denver', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—';
             const email = p.display_email || p.email || '—';
+            const visitor = p.visitor_name ? escapeHtml(String(p.visitor_name)) : '—';
             const amountDisplay = (p.tier === 'buddy_pass') ? 'Buddy pass' : (p.amount ? `$${(p.amount / 100).toFixed(2)}` : '—');
-            return `<tr><td>${date}</td><td>${escapeHtml(email)}</td><td style="text-align: right;">${escapeHtml(amountDisplay)}</td></tr>`;
+            return `<tr><td>${date}</td><td>${visitor}</td><td>${escapeHtml(email)}</td><td style="text-align: right;">${escapeHtml(amountDisplay)}</td></tr>`;
         }).join('');
         container.innerHTML = `
             <div style="overflow-x: auto;">
@@ -1782,6 +1839,7 @@ async function loadDropIns() {
                     <thead>
                         <tr>
                             <th style="text-align: left; padding: 0.5rem 0.75rem;">Date & Time (MT)</th>
+                            <th style="text-align: left; padding: 0.5rem 0.75rem;">Name</th>
                             <th style="text-align: left; padding: 0.5rem 0.75rem;">Email</th>
                             <th style="text-align: right; padding: 0.5rem 0.75rem;">Amount</th>
                         </tr>
@@ -1793,6 +1851,190 @@ async function loadDropIns() {
     } catch (err) {
         console.error('Load drop-ins error:', err);
         container.innerHTML = '<p class="error">Failed to load drop-ins.</p>';
+    }
+}
+
+async function loadAdminBuddyPasses() {
+    const container = document.getElementById('buddyPassesTableContainer');
+    if (!container) return;
+    container.innerHTML = '<p class="loading">Loading buddy passes...</p>';
+    try {
+        const authToken = localStorage.getItem('token');
+        if (!authToken) {
+            container.innerHTML = '<p class="error">Please log in to view buddy passes.</p>';
+            return;
+        }
+        const res = await fetch(`${API_BASE}/admin/buddy-passes`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!res.ok) {
+            if (res.status === 403) {
+                container.innerHTML = '<p class="error">Admin access required.</p>';
+                return;
+            }
+            throw new Error('Failed to load buddy passes');
+        }
+        const data = await res.json();
+        const passes = Array.isArray(data.buddy_passes) ? data.buddy_passes : [];
+        if (passes.length === 0) {
+            container.innerHTML = '<p style="color: #6b7280; padding: 1.5rem;">No buddy passes submitted yet.</p>';
+            return;
+        }
+        const rows = passes.map((p) => {
+            const createdAt = p.created_at
+                ? new Date(p.created_at).toLocaleString('en-US', { timeZone: 'America/Denver', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                : '—';
+            const visitDate = p.visit_date || '—';
+            const classLabel = [p.class_time, p.class_name].filter(Boolean).join(' - ') || '—';
+            const memberName = p.member_name || p.member_email || '—';
+            const memberEmail = p.member_email || '—';
+            const buddyName = p.buddy_name || '—';
+            const buddyEmail = p.buddy_email || '—';
+            const buddyPhone = p.buddy_phone || '—';
+            const status = p.status || 'pending';
+            const pin = p.pin || '—';
+            return `
+                <tr>
+                    <td>${escapeHtml(createdAt)}</td>
+                    <td>${escapeHtml(visitDate)}</td>
+                    <td>${escapeHtml(classLabel)}</td>
+                    <td>${escapeHtml(memberName)}<br><span style="font-size:0.75rem;color:#6b7280;">${escapeHtml(memberEmail)}</span></td>
+                    <td>${escapeHtml(buddyName)}<br><span style="font-size:0.75rem;color:#6b7280;">${escapeHtml(buddyEmail)}</span></td>
+                    <td>${escapeHtml(buddyPhone)}</td>
+                    <td>${escapeHtml(pin)}</td>
+                    <td><span class="status-badge status-${escapeHtml(String(status).toLowerCase())}">${escapeHtml(status)}</span></td>
+                </tr>
+            `;
+        }).join('');
+        container.innerHTML = `
+            <div style="overflow-x: auto;">
+                <table class="invoice-table" style="font-size: 0.84rem; min-width: 980px;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Submitted (MT)</th>
+                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Visit Date</th>
+                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Class</th>
+                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Member</th>
+                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Buddy</th>
+                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Buddy Phone</th>
+                            <th style="text-align: left; padding: 0.45rem 0.6rem;">PIN</th>
+                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        `;
+    } catch (err) {
+        console.error('Load admin buddy passes error:', err);
+        container.innerHTML = '<p class="error">Failed to load buddy passes.</p>';
+    }
+}
+
+async function loadAdminLoginCodeRequests() {
+    const container = document.getElementById('adminLoginCodeRequestsContainer');
+    if (!container) return;
+    container.innerHTML = '<p style="margin:0;color:#6b7280;font-size:0.8rem;">Loading…</p>';
+    try {
+        const authToken = localStorage.getItem('token');
+        if (!authToken) {
+            container.innerHTML = '<p style="color:#b91c1c;">Not logged in.</p>';
+            return;
+        }
+        const res = await fetch(`${API_BASE}/admin/login-code-requests`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!res.ok) {
+            if (res.status === 403) {
+                container.innerHTML = '<p style="color:#b91c1c;">Admin access required.</p>';
+                return;
+            }
+            throw new Error('load failed');
+        }
+        const data = await res.json();
+        const requests = Array.isArray(data.requests) ? data.requests : [];
+        if (requests.length === 0) {
+            container.innerHTML = '<p style="margin:0;color:#6b7280;">No pending requests.</p>';
+            return;
+        }
+        const rows = requests.map((r) => {
+            const when = r.created_at
+                ? new Date(r.created_at).toLocaleString('en-US', { timeZone: 'America/Denver', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                : '—';
+            const note = r.member_note ? escapeHtml(r.member_note) : '—';
+            const em = escapeHtml(r.email || '');
+            const emailAttr = encodeURIComponent(String(r.email || ''));
+            const name = escapeHtml(r.user_name || '—');
+            return `
+                <tr>
+                    <td style="padding:0.35rem 0.5rem;vertical-align:top;">${em}</td>
+                    <td style="padding:0.35rem 0.5rem;vertical-align:top;">${name}</td>
+                    <td style="padding:0.35rem 0.5rem;vertical-align:top;font-size:0.78rem;max-width:14rem;word-break:break-word;">${note}</td>
+                    <td style="padding:0.35rem 0.5rem;vertical-align:top;white-space:nowrap;font-size:0.78rem;">${escapeHtml(when)}</td>
+                    <td style="padding:0.35rem 0.5rem;vertical-align:top;white-space:nowrap;">
+                        <button type="button" class="btn btn-small lcr-gen-btn" data-lcr-id="${r.id}" data-lcr-email="${emailAttr}" style="font-size:0.7rem;padding:0.2rem 0.45rem;">Generate code</button>
+                        <button type="button" class="btn btn-small lcr-dismiss-btn" data-lcr-id="${r.id}" style="font-size:0.7rem;padding:0.2rem 0.45rem;margin-left:0.25rem;color:#b91c1c;">Dismiss</button>
+                    </td>
+                </tr>`;
+        }).join('');
+        container.innerHTML = `
+            <div style="overflow-x:auto;">
+                <table class="invoice-table" style="font-size:0.8rem;min-width:640px;">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left;padding:0.35rem 0.5rem;">Email</th>
+                            <th style="text-align:left;padding:0.35rem 0.5rem;">Name</th>
+                            <th style="text-align:left;padding:0.35rem 0.5rem;">Note</th>
+                            <th style="text-align:left;padding:0.35rem 0.5rem;">Requested (MT)</th>
+                            <th style="text-align:left;padding:0.35rem 0.5rem;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+        container.querySelectorAll('.lcr-gen-btn').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const raw = btn.getAttribute('data-lcr-email');
+                let email = '';
+                try {
+                    email = raw ? decodeURIComponent(raw) : '';
+                } catch (e) {
+                    email = raw || '';
+                }
+                if (!email || !currentUser || currentUser.role !== 'admin') return;
+                const lcrId = parseInt(btn.getAttribute('data-lcr-id'), 10);
+                if (Number.isFinite(lcrId) && lcrId > 0) {
+                    await handleGenerateTempLoginCode({ loginCodeRequestId: lcrId });
+                } else {
+                    await handleGenerateTempLoginCode(email);
+                }
+            });
+        });
+        container.querySelectorAll('.lcr-dismiss-btn').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const id = btn.getAttribute('data-lcr-id');
+                const authToken = localStorage.getItem('token');
+                if (!id || !authToken) return;
+                if (!window.confirm('Dismiss this request (member was helped or duplicate)?')) return;
+                try {
+                    const res = await fetch(`${API_BASE}/admin/login-code-requests/${id}/dismiss`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${authToken}` }
+                    });
+                    if (!res.ok) {
+                        const d = await res.json().catch(() => ({}));
+                        alert(d.error || 'Dismiss failed');
+                        return;
+                    }
+                    await loadAdminLoginCodeRequests();
+                } catch (e) {
+                    alert('Dismiss failed');
+                }
+            });
+        });
+    } catch (err) {
+        console.error('Load login code requests error:', err);
+        container.innerHTML = '<p style="color:#b91c1c;">Failed to load requests.</p>';
     }
 }
 
@@ -1832,11 +2074,12 @@ function renderAddMemberForm() {
                 <legend style="font-weight: 600;">Membership</legend>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
                     <div class="form-group" style="margin: 0;"><label for="addMember_membership_type">Type *</label><select id="addMember_membership_type" required>${typeOptions}</select></div>
-                    <div class="form-group" style="margin: 0;"><label for="addMember_start_date">First charge date *</label><input type="date" id="addMember_start_date" required></div>
+                    <div class="form-group" style="margin: 0;"><label for="addMember_start_date">Legacy next due / first Stoic bill *</label><input type="date" id="addMember_start_date" required></div>
                 </div>
+                <p style="font-size: 0.75rem; color: #6b7280; margin: 0.35rem 0 0 0; line-height: 1.4;">Use the member's next due date from your old system. That <strong>calendar day</strong> (Mountain) is their <strong>first Stoic pay date</strong> and the <strong>start of their 12-month commitment</strong> (no separate date field). They acknowledge the contract when they confirm online.</p>
                 <div id="addMember_immediate_family_section" style="display: none; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
                     <strong style="display: block; margin-bottom: 0.5rem;">Immediate family members</strong>
-                    <p style="font-size: 0.8125rem; color: #6b7280; margin-bottom: 0.75rem;">Add family members on the $50/month Immediate Family rate.</p>
+                    <p style="font-size: 0.8125rem; color: #6b7280; margin-bottom: 0.75rem;">Available when primary type is Standard or Expecting/Recovering Mother. Added family members are billed at the $50/month Immediate Family rate.</p>
                     <div id="addMember_immediate_family_list"></div>
                     <button type="button" class="btn btn-small" id="addMember_add_immediate_btn">+ Add immediate family member</button>
                     <p id="addMember_subtotal_display" style="font-size: 0.875rem; color: #374151; margin-top: 0.75rem;"></p>
@@ -1926,8 +2169,9 @@ function renderAddMemberForm() {
     const immediateSection = document.getElementById('addMember_immediate_family_section');
     const typeSelect = document.getElementById('addMember_membership_type');
     function toggleImmediateFamilySection() {
-        const isStandard = (typeSelect?.value || '') === 'standard';
-        if (immediateSection) immediateSection.style.display = isStandard ? 'block' : 'none';
+        const primaryType = (typeSelect?.value || '').toLowerCase();
+        const canAddImmediateFamily = primaryType === 'standard' || primaryType === 'expecting_or_recovering_mother';
+        if (immediateSection) immediateSection.style.display = canAddImmediateFamily ? 'block' : 'none';
     }
     typeSelect?.addEventListener('change', toggleImmediateFamilySection);
     toggleImmediateFamilySection();
@@ -1985,7 +2229,7 @@ function renderAddMemberForm() {
             return;
         }
         const membershipType = document.getElementById('addMember_membership_type')?.value;
-        const household_members = (membershipType === 'standard')
+        const household_members = (membershipType === 'standard' || membershipType === 'expecting_or_recovering_mother')
             ? Array.from(container.querySelectorAll('.addMember_immediate_family_row')).map(r => ({
                 name: r.querySelector('[data-if-name]')?.value?.trim() || '',
                 email: (r.querySelector('[data-if-email]')?.value || '').trim().toLowerCase() || '',
@@ -2399,7 +2643,25 @@ async function loadMembersAdmin() {
                 canGenerateTempCode: a.status === 'pending_confirmation'
             });
         });
-        const rows = allRows.map((r, i) => {
+        adminMembersRowsCache = allRows;
+        const membersSearchInput = document.getElementById('adminMembersSearchInput');
+        const membersSearchQuery = String(membersSearchInput?.value || '').trim().toLowerCase();
+        const filteredRows = !membersSearchQuery
+            ? allRows
+            : allRows.filter((r) => {
+                const statusText = String(r.statusHtml || '').replace(/<[^>]*>/g, ' ').toLowerCase();
+                const detailText = String(r.detailHtml || '').replace(/<[^>]*>/g, ' ').toLowerCase();
+                return String(r.name || '').toLowerCase().includes(membersSearchQuery)
+                    || String(r.emailRaw || '').toLowerCase().includes(membersSearchQuery)
+                    || String(r.type || '').toLowerCase().includes(membersSearchQuery)
+                    || statusText.includes(membersSearchQuery)
+                    || detailText.includes(membersSearchQuery);
+            });
+        if (filteredRows.length === 0) {
+            container.innerHTML = '<p style="color: #6b7280; padding: 1.5rem;">No gym members match your search.</p>';
+            return;
+        }
+        const rows = filteredRows.map((r, i) => {
             const rowId = 'member-row-' + i;
             const detailId = 'member-detail-' + i;
             const actionParts = [];
@@ -2472,7 +2734,7 @@ async function loadMembersAdmin() {
             btn.addEventListener('click', async (evt) => {
                 evt.stopPropagation(); // Don't toggle expand
                 const idx = btn.getAttribute('data-member-index');
-                const rowData = allRows[Number(idx)];
+                const rowData = filteredRows[Number(idx)];
                 if (!rowData || rowData.source !== 'admin_added' || !rowData.canDelete || !rowData.id) return;
                 const confirmed = window.confirm('Delete this pending member? This cannot be undone.');
                 if (!confirmed) return;
@@ -2610,37 +2872,81 @@ async function loadAppSubsAdmin() {
     }
 }
 
-function setupAdminTransactionsSubtabs() {
-    const subUp = document.getElementById('adminTransactionsSubUpcoming');
-    const subPast = document.getElementById('adminTransactionsSubPast');
-    const cUp = document.getElementById('transactionsUpcomingContainer');
-    const cPast = document.getElementById('transactionsPastContainer');
-    if (!subUp || !subPast || !cUp || !cPast) return;
-    if (subUp.dataset.txSubListeners === 'true') return;
-    subUp.dataset.txSubListeners = 'true';
-    const activate = (which) => {
-        subUp.classList.toggle('active', which === 'upcoming');
-        subPast.classList.toggle('active', which === 'past');
-        cUp.style.display = which === 'upcoming' ? 'block' : 'none';
-        cPast.style.display = which === 'past' ? 'block' : 'none';
-        if (which === 'upcoming') loadAdminTransactionsUpcoming();
-        else loadAdminTransactionsPast();
-    };
-    subUp.addEventListener('click', () => activate('upcoming'));
-    subPast.addEventListener('click', () => activate('past'));
+/** Tiers where same-day + same-amount + same-user often indicates a double charge (exclude true multi-purchase types). */
+function adminTxPaymentTierExcludedFromDuplicateHeuristic(tier) {
+    const t = String(tier || '').toLowerCase();
+    return t === 'drop_in' || t === 'buddy_pass' || t === 'buddy';
 }
 
-async function loadAdminTransactionsUpcoming() {
-    const container = document.getElementById('transactionsUpcomingContainer');
+function adminTxPaymentRowKey(p) {
+    return p.id != null ? p.id : `${p.user_id}|${p.created_at}|${p.amount}|${p.stripe_payment_intent_id || ''}|${p.tier || ''}`;
+}
+
+/**
+ * Marks payment row ids that look like duplicate charges in the same month list.
+ * Rules: (1) identical non-empty stripe_payment_intent_id on 2+ rows;
+ * (2) same user_id + tier + amount + same calendar day in America/Denver (renewal-like tiers only).
+ */
+function adminTxBuildPossibleDuplicatePaymentIds(payments) {
+    const dup = new Set();
+    const list = Array.isArray(payments) ? payments : [];
+    const piMap = new Map();
+    for (const p of list) {
+        const pi = p.stripe_payment_intent_id && String(p.stripe_payment_intent_id).trim();
+        if (!pi) continue;
+        if (!piMap.has(pi)) piMap.set(pi, []);
+        piMap.get(pi).push(p);
+    }
+    for (const [, arr] of piMap) {
+        if (arr.length >= 2) {
+            for (const p of arr) dup.add(adminTxPaymentRowKey(p));
+        }
+    }
+    const dayMap = new Map();
+    for (const p of list) {
+        if (adminTxPaymentTierExcludedFromDuplicateHeuristic(p.tier)) continue;
+        const uid = p.user_id != null ? String(p.user_id) : '';
+        if (!uid) continue;
+        const tier = String(p.tier || '').toLowerCase();
+        const amt = Number(p.amount);
+        if (!Number.isFinite(amt)) continue;
+        const raw = p.created_at;
+        let ymd = '';
+        if (raw) {
+            const d = new Date(raw);
+            if (!isNaN(d.getTime())) {
+                ymd = d.toLocaleDateString('en-CA', { timeZone: 'America/Denver' });
+            }
+        }
+        if (!ymd) continue;
+        const key = `${uid}|${tier}|${amt}|${ymd}`;
+        if (!dayMap.has(key)) dayMap.set(key, []);
+        dayMap.get(key).push(p);
+    }
+    for (const [, arr] of dayMap) {
+        if (arr.length >= 2) {
+            for (const p of arr) dup.add(adminTxPaymentRowKey(p));
+        }
+    }
+    return dup;
+}
+
+async function loadAdminCurrentMonthTransactions() {
+    const container = document.getElementById('transactionsCurrentMonthContainer');
     if (!container) return;
-    container.innerHTML = '<p class="loading">Loading upcoming transactions...</p>';
+    container.innerHTML = '<p class="loading">Loading transactions...</p>';
     try {
         const authToken = localStorage.getItem('token');
         if (!authToken) {
             container.innerHTML = '<p class="error">Please log in to view transactions.</p>';
             return;
         }
-        const res = await fetch(`${API_BASE}/admin/upcoming-transactions?daysAhead=60`, {
+        const picker = document.getElementById('adminTransactionsMonthPicker');
+        let qs = '';
+        if (picker && picker.value && /^\d{4}-\d{2}$/.test(picker.value)) {
+            qs = `?month=${encodeURIComponent(picker.value)}`;
+        }
+        const res = await fetch(`${API_BASE}/admin/current-month-transactions${qs}`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
         if (!res.ok) {
@@ -2648,16 +2954,29 @@ async function loadAdminTransactionsUpcoming() {
                 container.innerHTML = '<p class="error">Admin access required.</p>';
                 return;
             }
-            throw new Error('Failed to load upcoming transactions');
+            throw new Error('Failed to load current month transactions');
         }
         const data = await res.json();
-        const grouped = Array.isArray(data.grouped) ? data.grouped : [];
-        const items = Array.isArray(data.items) ? data.items : [];
-        if (items.length === 0) {
-            container.innerHTML = '<p style="color: #6b7280; padding: 1.5rem;">No upcoming paid app or gym charges in the selected window (free trials excluded). Test accounts excluded.</p>';
-            return;
+        if (picker && data.month && /^\d{4}-\d{2}$/.test(String(data.month))) {
+            picker.value = String(data.month);
         }
-        const formatDate = (d) => {
+        const monthLabel = escapeHtml(String(data.month_label || data.month || ''));
+        const paymentsAll = Array.isArray(data.payments) ? data.payments : [];
+        const paymentsSucceeded = Array.isArray(data.payments_succeeded)
+            ? data.payments_succeeded
+            : paymentsAll.filter((p) => String(p.status || '').toLowerCase() === 'succeeded');
+        const paymentsUnsuccessful = Array.isArray(data.payments_unsuccessful)
+            ? data.payments_unsuccessful
+            : paymentsAll.filter((p) => String(p.status || '').toLowerCase() !== 'succeeded');
+        const scheduled = Array.isArray(data.scheduled) ? data.scheduled : [];
+        const perUser = Array.isArray(data.per_user_april) ? data.per_user_april : [];
+        const summary = data.summary && typeof data.summary === 'object' ? data.summary : {};
+        const caveats = Array.isArray(data.caveats) ? data.caveats : [];
+        const caveatsHtml = caveats.length
+            ? `<ul style="margin:0 0 0.85rem 1.15rem;padding:0;font-size:0.75rem;color:#64748b;max-width:52rem;line-height:1.45;">${caveats.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul>`
+            : '';
+
+        const formatYmd = (d) => {
             if (!d || d === '—') return '—';
             const s = String(d).trim();
             if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
@@ -2679,129 +2998,187 @@ async function loadAdminTransactionsUpcoming() {
             if (m.is_overdue) {
                 return `<span style="display:inline-block;padding:0.2rem 0.5rem;border-radius:4px;background:#fee2e2;color:#b91c1c;font-size:0.75rem;font-weight:600;">Overdue${days != null ? ` (${Math.abs(days)}d)` : ''}</span>`;
             }
-            return `<span style="display:inline-block;padding:0.2rem 0.5rem;border-radius:4px;background:#dbeafe;color:#1e40af;font-size:0.75rem;">Due${days != null ? ` in ${days}d` : ''}</span>`;
+            if (days === 0) {
+                return '<span style="display:inline-block;padding:0.2rem 0.5rem;border-radius:4px;background:#ecfdf5;color:#047857;font-size:0.75rem;font-weight:600;">Due today</span>';
+            }
+            return `<span style="display:inline-block;padding:0.2rem 0.5rem;border-radius:4px;background:#dbeafe;color:#1e40af;font-size:0.75rem;">Due in ${days != null ? `${days}d` : '—'}</span>`;
         };
         const pmBadge = (m) => (m.has_payment_method
             ? '<span style="display:inline-block;padding:0.2rem 0.5rem;border-radius:4px;background:#047857;color:#ffffff;font-size:0.75rem;">On file</span>'
             : '<span style="display:inline-block;padding:0.2rem 0.5rem;border-radius:4px;background:#fef3c7;color:#92400e;font-size:0.75rem;">Missing</span>');
 
-        const renderRow = (m) => `<tr>
-                <td style="padding: 0.5rem 0.75rem;">${escapeHtml(m.label || '—')}</td>
-                <td style="padding: 0.5rem 0.75rem;">${formatDate(m.due_date)}</td>
-                <td style="padding: 0.5rem 0.75rem;">${timingBadge(m)}</td>
-                <td style="padding: 0.5rem 0.75rem;">${formatAmount(m.amount_due_cents)}</td>
-                <td style="padding: 0.5rem 0.75rem;">${pmBadge(m)}</td>
-            </tr>`;
-
-        const sections = grouped.map((g) => {
-            const dateHeading = formatDate(g.due_date);
-            const userBlocks = (g.users || []).map((u) => {
-                const rows = (u.items || []).map(renderRow).join('');
-                return `
-                    <div style="margin: 0.75rem 0 0.5rem 0; padding: 0.5rem 0.75rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
-                        <div style="font-weight: 600; color: #0f172a;">${escapeHtml(u.name || '—')} <span style="font-weight:400;color:#64748b;">${escapeHtml(u.email || '')}</span></div>
-                        <div style="overflow-x: auto; margin-top: 0.5rem;">
-                            <table class="invoice-table" style="font-size: 0.8125rem; width: 100%;">
-                                <thead>
-                                    <tr>
-                                        <th style="text-align:left;padding:0.35rem 0.5rem;">Type</th>
-                                        <th style="text-align:left;padding:0.35rem 0.5rem;">Due date</th>
-                                        <th style="text-align:left;padding:0.35rem 0.5rem;">Timing</th>
-                                        <th style="text-align:left;padding:0.35rem 0.5rem;">Amount</th>
-                                        <th style="text-align:left;padding:0.35rem 0.5rem;">Payment method</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${rows}</tbody>
-                            </table>
-                        </div>
-                    </div>`;
-            }).join('');
-            return `
-                <div style="margin-top: 1.25rem;">
-                    <div style="font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; margin-bottom: 0.35rem;">${escapeHtml(dateHeading)}</div>
-                    ${userBlocks}
-                </div>`;
-        }).join('');
-
-        container.innerHTML = `
-            <div style="margin-bottom: 0.75rem; font-size: 0.8125rem; color: #64748b;">
-                Paid app subscriptions (Tier Two+) and gym memberships due or overdue within ${escapeHtml(String(data.days_ahead || 60))} days. Free trials and Tier One excluded. Grouped by due date, then member.
-            </div>
-            ${sections}
-        `;
-    } catch (err) {
-        console.error('Load upcoming transactions error:', err);
-        container.innerHTML = '<p class="error">Failed to load upcoming transactions.</p>';
-    }
-}
-
-async function loadAdminTransactionsPast() {
-    const container = document.getElementById('transactionsPastContainer');
-    if (!container) return;
-    container.innerHTML = '<p class="loading">Loading past transactions...</p>';
-    try {
-        const authToken = localStorage.getItem('token');
-        if (!authToken) {
-            container.innerHTML = '<p class="error">Please log in.</p>';
-            return;
-        }
-        const res = await fetch(`${API_BASE}/admin/past-transactions?limit=2000`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        if (!res.ok) {
-            if (res.status === 403) {
-                container.innerHTML = '<p class="error">Admin access required.</p>';
-                return;
+        const paymentStatusBadge = (p) => {
+            const st = String(p.status || '').toLowerCase();
+            if (st === 'succeeded') {
+                return '<span style="display:inline-block;padding:0.2rem 0.5rem;border-radius:4px;background:#ecfdf5;color:#047857;font-size:0.75rem;font-weight:600;">Succeeded</span>';
             }
-            throw new Error('Failed to load past transactions');
-        }
-        const data = await res.json();
-        const payments = data.payments || [];
-        if (payments.length === 0) {
-            container.innerHTML = '<p style="color: #6b7280; padding: 1.5rem;">No payment records found.</p>';
-            return;
-        }
-        const formatWhen = (row) => formatDateMyAccount(row.created_at);
-        const rows = payments.map((p) => {
+            if (st === 'failed' || st === 'canceled') {
+                return `<span style="display:inline-block;padding:0.2rem 0.5rem;border-radius:4px;background:#fee2e2;color:#b91c1c;font-size:0.75rem;font-weight:600;">${escapeHtml(String(p.status || '—'))}</span>`;
+            }
+            return `<span style="display:inline-block;padding:0.2rem 0.5rem;border-radius:4px;background:#fef9c3;color:#854d0e;font-size:0.75rem;">${escapeHtml(String(p.status || '—'))}</span>`;
+        };
+
+        const dupSetSucc = adminTxBuildPossibleDuplicatePaymentIds(paymentsSucceeded);
+        const dupSetUnsucc = adminTxBuildPossibleDuplicatePaymentIds(paymentsUnsuccessful);
+        const dupPaymentRowsTotal =
+            paymentsSucceeded.filter((p) => dupSetSucc.has(adminTxPaymentRowKey(p))).length +
+            paymentsUnsuccessful.filter((p) => dupSetUnsucc.has(adminTxPaymentRowKey(p))).length;
+        const userIdsWithDupSuccCharge = new Set(
+            paymentsSucceeded.filter((p) => dupSetSucc.has(adminTxPaymentRowKey(p))).map((p) => Number(p.user_id))
+        );
+        const userIdsWithDupUnsuccCharge = new Set(
+            paymentsUnsuccessful.filter((p) => dupSetUnsucc.has(adminTxPaymentRowKey(p))).map((p) => Number(p.user_id))
+        );
+
+        const paymentRowHtml = (p, dupSet) => {
             const email = p.user_email || p.payment_email || '—';
             const tier = String(p.tier || '—').replace(/_/g, ' ');
             const amt = p.amount != null ? `$${(Number(p.amount) / 100).toFixed(2)}` : '—';
-            const st = escapeHtml(String(p.status || '—'));
             const pi = p.stripe_payment_intent_id ? String(p.stripe_payment_intent_id).slice(0, 18) + '…' : '—';
-            return `<tr>
-                <td style="padding: 0.45rem 0.6rem; white-space: nowrap;">${escapeHtml(formatWhen(p))}</td>
+            const rk = adminTxPaymentRowKey(p);
+            const isDup = dupSet.has(rk);
+            const rowStyle = isDup ? 'box-shadow: inset 4px 0 0 #ea580c; background: #fff7ed;' : '';
+            const flagCell = isDup
+                ? '<span style="white-space:normal;max-width:12rem;display:inline-block;" title="Same member, amount, and charge type on the same Mountain calendar day, or the same PaymentIntent id appears more than once. Confirm in Stripe (e.g. refunds) before changing the database."><span style="font-size:0.68rem;font-weight:700;color:#9a3412;border:1px solid #fdba74;border-radius:4px;padding:0.15rem 0.45rem;background:#ffedd5;">Possible duplicate</span></span>'
+                : '<span style="color:#cbd5e1;font-size:0.75rem;">—</span>';
+            return `<tr style="${rowStyle}">
+                <td style="padding: 0.45rem 0.6rem;">${escapeHtml(tier)}</td>
                 <td style="padding: 0.45rem 0.6rem;">${escapeHtml(p.name || '—')}</td>
                 <td style="padding: 0.45rem 0.6rem;">${escapeHtml(email)}</td>
-                <td style="padding: 0.45rem 0.6rem;">${escapeHtml(tier)}</td>
+                <td style="padding: 0.45rem 0.6rem; white-space: nowrap;">${escapeHtml(formatYmd(p.created_at))}</td>
+                <td style="padding: 0.45rem 0.6rem;">${paymentStatusBadge(p)}</td>
                 <td style="padding: 0.45rem 0.6rem;">${amt} ${escapeHtml(String(p.currency || 'usd').toUpperCase())}</td>
-                <td style="padding: 0.45rem 0.6rem;">${st}</td>
                 <td style="padding: 0.45rem 0.6rem; font-size: 0.75rem; color: #64748b;">${escapeHtml(pi)}</td>
+                <td style="padding: 0.45rem 0.6rem; vertical-align: middle;">${flagCell}</td>
+            </tr>`;
+        };
+
+        const scheduledRowHtml = (m) => `<tr>
+                <td style="padding: 0.45rem 0.6rem;">${escapeHtml(m.label || '—')}</td>
+                <td style="padding: 0.45rem 0.6rem;">${escapeHtml(m.name || '—')}</td>
+                <td style="padding: 0.45rem 0.6rem;">${escapeHtml(m.email || '—')}</td>
+                <td style="padding: 0.45rem 0.6rem; white-space: nowrap;">${formatYmd(m.due_date)}</td>
+                <td style="padding: 0.45rem 0.6rem;">${timingBadge(m)}</td>
+                <td style="padding: 0.45rem 0.6rem;">${formatAmount(m.amount_due_cents)}</td>
+                <td style="padding: 0.45rem 0.6rem;">${pmBadge(m)}</td>
+            </tr>`;
+
+        const payTableHead = `<thead><tr>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Type</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Name</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Email</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Charged (MT)</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Status</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Amount</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">PaymentIntent</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Duplicate check</th>
+        </tr></thead>`;
+
+        const schedTableHead = `<thead><tr>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Renewal</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Name</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Email</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Due (MT)</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Timing</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Amount</th>
+            <th style="text-align:left;padding:0.45rem 0.6rem;">Card on file</th>
+        </tr></thead>`;
+
+        const dupLegendSucc =
+            dupSetSucc.size > 0
+                ? `<p style="font-size:0.72rem;color:#9a3412;margin:0 0 0.5rem 0;max-width:48rem;">Orange stripe on a row: same member, amount, and charge type on the same Mountain day, or the same PaymentIntent id appears twice. Verify in Stripe (refunds, partial captures) before editing the database.</p>`
+                : '';
+        const dupLegendUnsucc =
+            dupSetUnsucc.size > 0
+                ? `<p style="font-size:0.72rem;color:#9a3412;margin:0 0 0.5rem 0;max-width:48rem;">Orange stripe: same duplicate heuristics as successful charges.</p>`
+                : '';
+
+        const succBody = paymentsSucceeded.length
+            ? paymentsSucceeded.map((p) => paymentRowHtml(p, dupSetSucc)).join('')
+            : '<tr><td colspan="8" style="padding:0.75rem;color:#64748b;">No successful payment rows in this month.</td></tr>';
+        const unsuccBody = paymentsUnsuccessful.length
+            ? paymentsUnsuccessful.map((p) => paymentRowHtml(p, dupSetUnsucc)).join('')
+            : '<tr><td colspan="8" style="padding:0.75rem;color:#64748b;">No unsuccessful or in-progress payment rows in this month.</td></tr>';
+        const schedBody = scheduled.length
+            ? scheduled.map(scheduledRowHtml).join('')
+            : '<tr><td colspan="7" style="padding:0.75rem;color:#64748b;">No gym or paid-app renewals scheduled with a due date in this month (Tier One / free trials excluded).</td></tr>';
+
+        const memberSnapRows = perUser.map((r) => {
+            const succ = r.succeeded_count > 0
+                ? `${r.succeeded_count} · ${formatAmount(r.succeeded_total_cents)}`
+                : '—';
+            const unsucc = r.unsuccessful_count > 0 ? String(r.unsuccessful_count) : '—';
+            const up = r.upcoming_renewals_count > 0 ? String(r.upcoming_renewals_count) : '—';
+            const idle = r.succeeded_count === 0 && r.unsuccessful_count === 0 && r.upcoming_renewals_count === 0;
+            const rowStyle = idle ? 'background:#f8fafc;' : '';
+            const dupHint =
+                (userIdsWithDupSuccCharge.has(Number(r.user_id))
+                    ? '<span style="display:block;margin-top:0.25rem;font-size:0.68rem;font-weight:600;color:#c2410c;">Succeeded table: possible duplicate</span>'
+                    : '') +
+                (userIdsWithDupUnsuccCharge.has(Number(r.user_id))
+                    ? '<span style="display:block;margin-top:0.25rem;font-size:0.68rem;font-weight:600;color:#b45309;">Other payments table: possible duplicate</span>'
+                    : '');
+            const note =
+                (idle ? '<span style="font-size:0.72rem;color:#94a3b8;">No April payment rows / renewals</span>' : '') +
+                dupHint;
+            return `<tr style="${rowStyle}">
+                <td style="padding:0.45rem 0.6rem;">${escapeHtml(r.name || '—')}</td>
+                <td style="padding:0.45rem 0.6rem;">${escapeHtml(r.email || '—')}</td>
+                <td style="padding:0.45rem 0.6rem;">${escapeHtml(String(r.role || ''))}</td>
+                <td style="padding:0.45rem 0.6rem;">${escapeHtml(succ)}</td>
+                <td style="padding:0.45rem 0.6rem;">${escapeHtml(unsucc)}</td>
+                <td style="padding:0.45rem 0.6rem;">${escapeHtml(up)}</td>
+                <td style="padding:0.45rem 0.6rem;">${note}</td>
             </tr>`;
         }).join('');
+
+        const uCount = summary.user_count != null ? summary.user_count : perUser.length;
+        const sPay = summary.succeeded_payment_count != null ? summary.succeeded_payment_count : paymentsSucceeded.length;
+        const uPay = summary.unsuccessful_payment_count != null ? summary.unsuccessful_payment_count : paymentsUnsuccessful.length;
+        const sSched = summary.scheduled_renewal_count != null ? summary.scheduled_renewal_count : scheduled.length;
+        const idleN = summary.users_with_no_april_activity != null ? summary.users_with_no_april_activity : perUser.filter(
+            (r) => r.succeeded_count === 0 && r.unsuccessful_count === 0 && r.upcoming_renewals_count === 0
+        ).length;
+
+        const section = (title, id, inner) => `
+            <div style="margin-top:1.25rem;">
+                <h4 style="margin:0 0 0.5rem 0;font-size:0.95rem;color:#0f172a;font-weight:600;">${title}</h4>
+                <div style="overflow-x:auto;" id="${id}">${inner}</div>
+            </div>`;
+
         container.innerHTML = `
             <div style="margin-bottom: 0.75rem; font-size: 0.8125rem; color: #64748b;">
-                All processed payment records (newest first). Test accounts excluded.
+                <strong>${monthLabel}</strong> — ${escapeHtml(String(data.month || ''))} · ${escapeHtml(String(data.timezone || 'America/Denver'))}. Test and automation accounts excluded from all tables.
             </div>
-            <div style="overflow-x: auto;">
-                <table class="invoice-table" style="font-size: 0.8125rem;">
-                    <thead>
-                        <tr>
-                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Date</th>
-                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Name</th>
-                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Email</th>
-                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Type</th>
-                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Amount</th>
-                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Status</th>
-                            <th style="text-align: left; padding: 0.45rem 0.6rem;">Payment ref</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                </table>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem 1rem;margin-bottom:0.75rem;font-size:0.8125rem;">
+                <span style="padding:0.35rem 0.65rem;border-radius:6px;background:#ecfdf5;color:#065f46;"><strong>${uCount}</strong> members</span>
+                <span style="padding:0.35rem 0.65rem;border-radius:6px;background:#ecfdf5;color:#065f46;"><strong>${sPay}</strong> succeeded charges</span>
+                <span style="padding:0.35rem 0.65rem;border-radius:6px;background:#fef3c7;color:#92400e;"><strong>${uPay}</strong> unsuccessful / other status</span>
+                <span style="padding:0.35rem 0.65rem;border-radius:6px;background:#dbeafe;color:#1e40af;"><strong>${sSched}</strong> renewals due this month</span>
+                <span style="padding:0.35rem 0.65rem;border-radius:6px;background:#f1f5f9;color:#475569;"><strong>${idleN}</strong> no April activity</span>
+                ${
+                    dupPaymentRowsTotal > 0
+                        ? `<span style="padding:0.35rem 0.65rem;border-radius:6px;background:#ffedd5;color:#9a3412;border:1px solid #fdba74;"><strong>${dupPaymentRowsTotal}</strong> rows flagged possible duplicate</span>`
+                        : ''
+                }
             </div>
+            ${caveatsHtml}
+            ${section('Successful charges', 'txSectionSucceeded', `${dupLegendSucc}<table class="invoice-table" style="font-size:0.8125rem;">${payTableHead}<tbody>${succBody}</tbody></table>`)}
+            ${section('Unsuccessful or non-completed payments', 'txSectionUnsuccessful', `${dupLegendUnsucc}<table class="invoice-table" style="font-size:0.8125rem;">${payTableHead}<tbody>${unsuccBody}</tbody></table>`)}
+            ${section('Pending and upcoming (renewals due in this month)', 'txSectionScheduled', `<table class="invoice-table" style="font-size:0.8125rem;">${schedTableHead}<tbody>${schedBody}</tbody></table>`)}
+            ${section('All members — activity in this month', 'txSectionMembers', `<table class="invoice-table" style="font-size:0.8125rem;"><thead><tr>
+                <th style="text-align:left;padding:0.45rem 0.6rem;">Name</th>
+                <th style="text-align:left;padding:0.45rem 0.6rem;">Email</th>
+                <th style="text-align:left;padding:0.45rem 0.6rem;">Role</th>
+                <th style="text-align:left;padding:0.45rem 0.6rem;">Succeeded</th>
+                <th style="text-align:left;padding:0.45rem 0.6rem;">Other payment rows</th>
+                <th style="text-align:left;padding:0.45rem 0.6rem;">Renewals due</th>
+                <th style="text-align:left;padding:0.45rem 0.6rem;">Notes</th>
+            </tr></thead><tbody>${memberSnapRows || '<tr><td colspan="7" style="padding:0.75rem;">No user rows returned.</td></tr>'}</tbody></table>`)}
         `;
     } catch (err) {
-        console.error('Load past transactions error:', err);
-        container.innerHTML = '<p class="error">Failed to load past transactions.</p>';
+        console.error('Load current month transactions error:', err);
+        container.innerHTML = '<p class="error">Failed to load transactions.</p>';
     }
 }
 
@@ -4332,6 +4709,7 @@ function switchCardView(view) {
         }
         setupAdminTabs(); // Setup admin tabs
         loadAllUsers();
+        loadAdminLoginCodeRequests();
     } else if (view === 'macro') {
         // Allow all tiers to access (tier_one gets 2 meal plan calculations, others get more)
         const hasAccess = currentSubscription && subscriptionStatusGrantsAccess(currentSubscription.status);
@@ -4669,6 +5047,11 @@ function switchCardView(view) {
     }
 }
 
+// Admin list caches for client-side searching
+let adminUsersCache = [];
+let adminUsersTesterMode = false;
+let adminMembersRowsCache = [];
+
 // Load all users for admin view (or just current user for testers)
 async function loadAllUsers() {
     const container = document.getElementById('usersTableContainer');
@@ -4706,7 +5089,9 @@ async function loadAllUsers() {
                         subscription_end: data.subscription ? data.subscription.end_date : null,
                         created_at: data.user.created_at
                     };
-                    renderUsersTable([userData], true); // Pass true to indicate tester mode
+                    adminUsersCache = [userData];
+                    adminUsersTesterMode = true;
+                    renderUsersTable(adminUsersCache, adminUsersTesterMode);
                 } else {
                     container.innerHTML = '<p class="error-message">Access denied</p>';
                 }
@@ -4723,7 +5108,9 @@ async function loadAllUsers() {
             
             if (response.ok) {
                 const data = await response.json();
-                renderUsersTable(data.users || [], false); // Pass false for admin mode
+                adminUsersCache = data.users || [];
+                adminUsersTesterMode = false;
+                renderUsersTable(adminUsersCache, adminUsersTesterMode);
             } else if (response.status === 403) {
                 container.innerHTML = '<p class="error-message">Admin access required</p>';
             } else {
@@ -4764,6 +5151,21 @@ function renderUsersTable(users, isTesterMode = false) {
         filteredUsers = [...users].filter(u => !isProdTestEmailUser(u)).sort((a, b) => sortKey(b) - sortKey(a));
     }
     
+    const usersSearchInput = document.getElementById('adminUsersSearchInput');
+    const usersSearchQuery = String(usersSearchInput?.value || '').trim().toLowerCase();
+    if (usersSearchQuery) {
+        filteredUsers = filteredUsers.filter((u) => {
+            const name = String(u.name || '').toLowerCase();
+            const email = String(u.email || '').toLowerCase();
+            const role = String(u.role || '').toLowerCase();
+            const ip = String(u.last_login_ip || '').toLowerCase();
+            return name.includes(usersSearchQuery)
+                || email.includes(usersSearchQuery)
+                || role.includes(usersSearchQuery)
+                || ip.includes(usersSearchQuery);
+        });
+    }
+
     if (filteredUsers.length === 0) {
         container.innerHTML = '<p class="loading">No users found</p>';
         return;
@@ -4861,36 +5263,60 @@ function renderUsersTable(users, isTesterMode = false) {
     }
 }
 
-async function handleGenerateTempLoginCode(email) {
-    if (!currentUser || currentUser.role !== 'admin' || !email) return;
+async function handleGenerateTempLoginCode(emailOrOpts) {
+    const isObj = emailOrOpts && typeof emailOrOpts === 'object' && !Array.isArray(emailOrOpts);
+    const email = isObj ? (emailOrOpts.email || '') : String(emailOrOpts || '');
+    const loginCodeRequestId = isObj ? emailOrOpts.loginCodeRequestId : null;
+    if (!currentUser || currentUser.role !== 'admin') return;
+    if (!loginCodeRequestId && !email) return;
     const authToken = localStorage.getItem('token');
     if (!authToken) {
         alert('Not logged in');
         return;
     }
     try {
+        const body =
+            loginCodeRequestId != null && Number.isFinite(Number(loginCodeRequestId)) && Number(loginCodeRequestId) > 0
+                ? { login_code_request_id: Number(loginCodeRequestId) }
+                : { email };
         const response = await fetch(`${API_BASE}/admin/users/temp-login-code`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-            body: JSON.stringify({ email })
+            body: JSON.stringify(body)
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
             const msgFromErrors = Array.isArray(data.errors)
-                ? data.errors.map(e => e.msg || e.message || String(e)).filter(Boolean).join('; ')
+                ? data.errors.map((e) => {
+                    if (e.msg) return e.msg;
+                    if (e.message) return e.message;
+                    if (e.path && e.type) return `${e.path}: ${e.type}`;
+                    return String(e);
+                }).filter(Boolean).join('; ')
                 : null;
             const msg = data.error || data.message || msgFromErrors || `Failed to generate temporary code (HTTP ${response.status})`;
             alert(msg);
             return;
         }
         const code = String(data.code || '').trim();
+        const displayEmail = data.userEmail || email || '';
+        let copied = false;
         if (code && navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(code);
+            try {
+                await navigator.clipboard.writeText(code);
+                copied = true;
+            } catch (clipErr) {
+                console.warn('Clipboard copy skipped:', clipErr && clipErr.message);
+            }
         }
-        alert(`6-digit code generated for ${email}.\n\nCode: ${code}\nExpires: ${data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'in 24 hours'}\n\nTell member to log in with email + this code, then set a new password.\n${code ? 'Code copied to clipboard.' : ''}`);
+        alert(
+            `6-digit code generated for ${displayEmail}.\n\nCode: ${code}\nExpires: ${data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'in 24 hours'}\n\nTell member to log in with email + this code, then set a new password.` +
+                (copied ? '\n\nCode copied to clipboard.' : '\n\n(Copy the code manually if needed.)')
+        );
     } catch (e) {
         console.error('Generate temp code error:', e);
-        alert('Failed to generate temporary code');
+        const detail = e && e.message ? ` ${e.message}` : '';
+        alert(`Failed to generate temporary code.${detail}`);
     }
 }
 
@@ -6248,7 +6674,381 @@ function setupEventListeners() {
     // Refresh users button
     const refreshUsersBtn = document.getElementById('refreshUsersBtn');
     if (refreshUsersBtn) {
-        refreshUsersBtn.addEventListener('click', loadAllUsers);
+        refreshUsersBtn.addEventListener('click', () => {
+            loadAllUsers();
+            loadAdminLoginCodeRequests();
+        });
+    }
+    const adminLinkImmediateFamilyBtn = document.getElementById('adminLinkImmediateFamilyBtn');
+    if (adminLinkImmediateFamilyBtn) {
+        adminLinkImmediateFamilyBtn.addEventListener('click', async () => {
+            const primaryEl = document.getElementById('adminLinkFamPrimaryEmail');
+            const memberEl = document.getElementById('adminLinkFamMemberEmail');
+            const nameEl = document.getElementById('adminLinkFamMemberName');
+            const outEl = document.getElementById('adminLinkImmediateFamilyOut');
+            const errEl = document.getElementById('adminLinkImmediateFamilyErr');
+            const primary_email = (primaryEl && primaryEl.value || '').trim().toLowerCase();
+            const member_email = (memberEl && memberEl.value || '').trim().toLowerCase();
+            const member_name = (nameEl && nameEl.value || '').trim() || null;
+            if (outEl) outEl.textContent = '';
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+            if (!primary_email) {
+                if (errEl) { errEl.textContent = 'Enter the primary billing email. Member email is optional — if left blank, it stays unset in the app until the primary adds it under Gym → Household.'; errEl.style.display = 'block'; }
+                return;
+            }
+            const authToken = localStorage.getItem('token');
+            if (!authToken) {
+                if (errEl) { errEl.textContent = 'Not logged in.'; errEl.style.display = 'block'; }
+                return;
+            }
+            adminLinkImmediateFamilyBtn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/admin/link-immediate-family`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ primary_email, member_email, member_name })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (errEl) { errEl.textContent = data.error || `Failed (${res.status})`; errEl.style.display = 'block'; }
+                    return;
+                }
+                if (outEl) {
+                    const lines = [
+                        `Linked. family_group_id=${data.family_group_id}`,
+                        data.placeholder_email_generated
+                            ? `Member email left unset — billing primary can add it under Gym → Household.${data.member_user_id != null ? ` member_user_id=${data.member_user_id}` : ''}`
+                            : data.member_email
+                              ? `member_email=${data.member_email}`
+                              : '',
+                        `repair: updated ${data.repair && data.repair.updated != null ? data.repair.updated : 0} household(s)`,
+                        data.repair && data.repair.updates ? JSON.stringify(data.repair.updates, null, 2) : ''
+                    ];
+                    outEl.textContent = lines.filter(Boolean).join('\n');
+                }
+            } catch (e) {
+                if (errEl) { errEl.textContent = 'Request failed.'; errEl.style.display = 'block'; }
+            } finally {
+                adminLinkImmediateFamilyBtn.disabled = false;
+            }
+        });
+    }
+    const adminLinkImmediateFamilyBillingBtn = document.getElementById('adminLinkImmediateFamilyBillingBtn');
+    if (adminLinkImmediateFamilyBillingBtn) {
+        adminLinkImmediateFamilyBillingBtn.addEventListener('click', async () => {
+            const primaryEl = document.getElementById('adminLinkBillPrimaryEmail');
+            const memberEl = document.getElementById('adminLinkBillMemberEmail');
+            const nameEl = document.getElementById('adminLinkBillMemberName');
+            const listDEl = document.getElementById('adminLinkBillMemberListDollars');
+            const discDEl = document.getElementById('adminLinkBillDiscountDollars');
+            const discNameEl = document.getElementById('adminLinkBillDiscountName');
+            const outEl = document.getElementById('adminLinkBillOut');
+            const errEl = document.getElementById('adminLinkBillErr');
+            const primary_email = (primaryEl && primaryEl.value || '').trim().toLowerCase();
+            const member_email = (memberEl && memberEl.value || '').trim().toLowerCase();
+            const member_name = (nameEl && nameEl.value || '').trim() || null;
+            const member_list_price_dollars = (listDEl && listDEl.value || '').trim();
+            const discount_total_dollars = (discDEl && discDEl.value || '').trim();
+            const discount_name = (discNameEl && discNameEl.value || '').trim() || null;
+            if (outEl) outEl.textContent = '';
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+            if (!primary_email) {
+                if (errEl) { errEl.textContent = 'Enter the primary billing email. Member email is optional — if left blank, it stays unset in the app until the primary adds it under Gym → Household.'; errEl.style.display = 'block'; }
+                return;
+            }
+            const authToken = localStorage.getItem('token');
+            if (!authToken) {
+                if (errEl) { errEl.textContent = 'Not logged in.'; errEl.style.display = 'block'; }
+                return;
+            }
+            const body = { primary_email, member_email, member_name };
+            if (member_list_price_dollars) body.member_list_price_dollars = member_list_price_dollars;
+            if (discount_total_dollars) body.discount_total_dollars = discount_total_dollars;
+            if (discount_name) body.discount_name = discount_name;
+            adminLinkImmediateFamilyBillingBtn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/admin/link-immediate-family-with-billing`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (errEl) { errEl.textContent = data.error || `Failed (${res.status})`; errEl.style.display = 'block'; }
+                    return;
+                }
+                if (outEl) {
+                    const lines = [
+                        `Linked. family_group_id=${data.family_group_id}`,
+                        data.placeholder_email_generated
+                            ? `Member email left unset — billing primary can add it under Gym → Household.${data.member_user_id != null ? ` member_user_id=${data.member_user_id}` : ''}`
+                            : data.member_email
+                              ? `member_email=${data.member_email}`
+                              : '',
+                        `repair: updated ${data.repair && data.repair.updated != null ? data.repair.updated : 0} household(s)`,
+                        data.repair && data.repair.updates ? JSON.stringify(data.repair.updates, null, 2) : ''
+                    ];
+                    if (data.warnings && data.warnings.length) {
+                        lines.push('Warnings:', ...data.warnings);
+                    }
+                    outEl.textContent = lines.filter(Boolean).join('\n');
+                }
+                if (typeof loadAllUsers === 'function') loadAllUsers();
+            } catch (e) {
+                if (errEl) { errEl.textContent = 'Request failed.'; errEl.style.display = 'block'; }
+            } finally {
+                adminLinkImmediateFamilyBillingBtn.disabled = false;
+            }
+        });
+    }
+    const adminRepairHouseholdBtn = document.getElementById('adminRepairHouseholdBtn');
+    if (adminRepairHouseholdBtn) {
+        adminRepairHouseholdBtn.addEventListener('click', async () => {
+            const emailEl = document.getElementById('adminRepairHouseholdEmail');
+            const outEl = document.getElementById('adminRepairHouseholdOut');
+            const errEl = document.getElementById('adminRepairHouseholdErr');
+            const primaryEmail = (emailEl && emailEl.value || '').trim();
+            if (outEl) outEl.textContent = '';
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+            const authToken = localStorage.getItem('token');
+            if (!authToken) {
+                if (errEl) { errEl.textContent = 'Not logged in.'; errEl.style.display = 'block'; }
+                return;
+            }
+            adminRepairHouseholdBtn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/admin/repair-household-monthly`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify(primaryEmail ? { primary_email: primaryEmail } : {})
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (errEl) { errEl.textContent = data.error || `Failed (${res.status})`; errEl.style.display = 'block'; }
+                    return;
+                }
+                if (outEl) {
+                    const n = data.updated != null ? data.updated : 0;
+                    const detail = (data.updates && data.updates.length)
+                        ? '\n' + JSON.stringify(data.updates, null, 2)
+                        : '';
+                    outEl.textContent = `Updated ${n} household(s).${detail}`;
+                }
+            } catch (e) {
+                if (errEl) { errEl.textContent = 'Request failed.'; errEl.style.display = 'block'; }
+            } finally {
+                adminRepairHouseholdBtn.disabled = false;
+            }
+        });
+    }
+    const adminPasswordResetLinkBtn = document.getElementById('adminPasswordResetLinkBtn');
+    if (adminPasswordResetLinkBtn) {
+        adminPasswordResetLinkBtn.addEventListener('click', async () => {
+            const emailEl = document.getElementById('adminPasswordResetEmail');
+            const outEl = document.getElementById('adminPasswordResetLinkOut');
+            const errEl = document.getElementById('adminPasswordResetLinkErr');
+            const email = (emailEl && emailEl.value || '').trim();
+            if (outEl) outEl.textContent = '';
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+            if (!email) {
+                if (errEl) { errEl.textContent = 'Enter an email.'; errEl.style.display = 'block'; }
+                return;
+            }
+            const authToken = localStorage.getItem('token');
+            if (!authToken) {
+                if (errEl) { errEl.textContent = 'Not logged in.'; errEl.style.display = 'block'; }
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/admin/users/password-reset-link`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (errEl) { errEl.textContent = data.error || `Failed (${res.status})`; errEl.style.display = 'block'; }
+                    return;
+                }
+                if (outEl && data.resetUrl) {
+                    outEl.innerHTML = `${escapeHtml(data.message || 'Link ready.')}<br><a href="${escapeHtml(data.resetUrl)}" target="_blank" rel="noopener">${escapeHtml(data.resetUrl)}</a>`;
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(data.resetUrl);
+                        outEl.innerHTML += '<br><span style="color:#047857;">Copied to clipboard.</span>';
+                    }
+                }
+            } catch (e) {
+                if (errEl) { errEl.textContent = 'Request failed.'; errEl.style.display = 'block'; }
+            }
+        });
+    }
+    const adminSetNameBtn = document.getElementById('adminSetNameBtn');
+    if (adminSetNameBtn) {
+        adminSetNameBtn.addEventListener('click', async () => {
+            const emailEl = document.getElementById('adminSetNameEmail');
+            const nameEl = document.getElementById('adminSetNameFull');
+            const outEl = document.getElementById('adminSetNameOut');
+            const errEl = document.getElementById('adminSetNameErr');
+            const email = (emailEl && emailEl.value || '').trim().toLowerCase();
+            const name = (nameEl && nameEl.value || '').trim();
+            if (outEl) outEl.textContent = '';
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+            if (!email || !name) {
+                if (errEl) { errEl.textContent = 'Enter email and full name.'; errEl.style.display = 'block'; }
+                return;
+            }
+            const authToken = localStorage.getItem('token');
+            if (!authToken) {
+                if (errEl) { errEl.textContent = 'Not logged in.'; errEl.style.display = 'block'; }
+                return;
+            }
+            adminSetNameBtn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/admin/users/by-email/name`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ email, name })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (errEl) { errEl.textContent = data.error || `Failed (${res.status})`; errEl.style.display = 'block'; }
+                    return;
+                }
+                if (outEl) {
+                    outEl.textContent = `Saved: ${data.name || name} (${data.email || email})`;
+                }
+                if (typeof loadAllUsers === 'function') loadAllUsers();
+            } catch (e) {
+                if (errEl) { errEl.textContent = 'Request failed.'; errEl.style.display = 'block'; }
+            } finally {
+                adminSetNameBtn.disabled = false;
+            }
+        });
+    }
+    const adminSyncGymPmBtn = document.getElementById('adminSyncGymPmBtn');
+    if (adminSyncGymPmBtn) {
+        adminSyncGymPmBtn.addEventListener('click', async () => {
+            const emailEl = document.getElementById('adminSyncGymPmEmail');
+            const outEl = document.getElementById('adminSyncGymPmOut');
+            const errEl = document.getElementById('adminSyncGymPmErr');
+            const email = (emailEl && emailEl.value || '').trim().toLowerCase();
+            if (outEl) outEl.textContent = '';
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+            if (!email) {
+                if (errEl) { errEl.textContent = 'Enter an email.'; errEl.style.display = 'block'; }
+                return;
+            }
+            const authToken = localStorage.getItem('token');
+            if (!authToken) {
+                if (errEl) { errEl.textContent = 'Not logged in.'; errEl.style.display = 'block'; }
+                return;
+            }
+            adminSyncGymPmBtn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/admin/gym-memberships/sync-payment-from-app`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (errEl) { errEl.textContent = data.error || `Failed (${res.status})`; errEl.style.display = 'block'; }
+                    return;
+                }
+                if (outEl) {
+                    const lines = [
+                        `Updated gym_membership id ${data.gym_membership_id}`,
+                        `stripe_customer_id: ${data.stripe_customer_id}`,
+                        `payment_method_id: ${data.payment_method_id}`
+                    ];
+                    if (data.warnings && data.warnings.length) {
+                        lines.push('Warnings:', ...data.warnings);
+                    }
+                    outEl.textContent = lines.join('\n');
+                }
+                if (typeof loadAllUsers === 'function') loadAllUsers();
+            } catch (e) {
+                if (errEl) { errEl.textContent = 'Request failed.'; errEl.style.display = 'block'; }
+            } finally {
+                adminSyncGymPmBtn.disabled = false;
+            }
+        });
+    }
+    const adminHouseholdAnchorBtn = document.getElementById('adminHouseholdAnchorBtn');
+    if (adminHouseholdAnchorBtn) {
+        adminHouseholdAnchorBtn.addEventListener('click', async () => {
+            const emailEl = document.getElementById('adminHouseholdAnchorEmail');
+            const startEl = document.getElementById('adminHouseholdAnchorStart');
+            const endEl = document.getElementById('adminHouseholdAnchorEnd');
+            const outEl = document.getElementById('adminHouseholdAnchorOut');
+            const errEl = document.getElementById('adminHouseholdAnchorErr');
+            const primary_email = (emailEl && emailEl.value || '').trim().toLowerCase();
+            const contract_start_date = (startEl && startEl.value || '').trim();
+            const contract_end_date = (endEl && endEl.value || '').trim();
+            if (outEl) outEl.textContent = '';
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+            if (!primary_email || !contract_start_date || !contract_end_date) {
+                if (errEl) { errEl.textContent = 'Enter primary email and both dates.'; errEl.style.display = 'block'; }
+                return;
+            }
+            const authToken = localStorage.getItem('token');
+            if (!authToken) {
+                if (errEl) { errEl.textContent = 'Not logged in.'; errEl.style.display = 'block'; }
+                return;
+            }
+            adminHouseholdAnchorBtn.disabled = true;
+            try {
+                const res = await fetch(`${API_BASE}/admin/gym-memberships/set-household-anchor-dates`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ primary_email, contract_start_date, contract_end_date })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    if (errEl) { errEl.textContent = data.error || `Failed (${res.status})`; errEl.style.display = 'block'; }
+                    return;
+                }
+                if (outEl) outEl.textContent = JSON.stringify(data, null, 2);
+                if (typeof loadAllUsers === 'function') loadAllUsers();
+            } catch (e) {
+                if (errEl) { errEl.textContent = 'Request failed.'; errEl.style.display = 'block'; }
+            } finally {
+                adminHouseholdAnchorBtn.disabled = false;
+            }
+        });
+    }
+    const adminUsersSearchInput = document.getElementById('adminUsersSearchInput');
+    if (adminUsersSearchInput) {
+        adminUsersSearchInput.addEventListener('input', () => {
+            renderUsersTable(adminUsersCache, adminUsersTesterMode);
+        });
+    }
+    const adminMembersSearchInput = document.getElementById('adminMembersSearchInput');
+    if (adminMembersSearchInput) {
+        adminMembersSearchInput.addEventListener('input', () => {
+            const membersTabVisible = document.getElementById('adminMembersContent')?.style.display !== 'none';
+            if (membersTabVisible && adminMembersRowsCache.length > 0) {
+                const rowsCopy = adminMembersRowsCache.slice();
+                const container = document.getElementById('membersTableContainer');
+                if (container) {
+                    const query = String(adminMembersSearchInput.value || '').trim().toLowerCase();
+                    const filteredRows = !query ? rowsCopy : rowsCopy.filter((r) => {
+                        const statusText = String(r.statusHtml || '').replace(/<[^>]*>/g, ' ').toLowerCase();
+                        const detailText = String(r.detailHtml || '').replace(/<[^>]*>/g, ' ').toLowerCase();
+                        return String(r.name || '').toLowerCase().includes(query)
+                            || String(r.emailRaw || '').toLowerCase().includes(query)
+                            || String(r.type || '').toLowerCase().includes(query)
+                            || statusText.includes(query)
+                            || detailText.includes(query);
+                    });
+                    if (filteredRows.length === 0) {
+                        container.innerHTML = '<p style="color: #6b7280; padding: 1.5rem;">No gym members match your search.</p>';
+                    } else {
+                        loadMembersAdmin();
+                    }
+                }
+            }
+        });
     }
     
     // Setup admin tabs
@@ -6490,7 +7290,7 @@ async function handleLogin(e) {
         if (response.ok) {
             if (data.requiresPasswordChange) {
                 pendingTempLogin = {
-                    email: email.trim(),
+                    email: (data.email || email || '').trim(),
                     tempCode: password.trim()
                 };
                 document.getElementById('emailPasswordSection').style.display = 'block';
@@ -6683,10 +7483,12 @@ function checkResetToken() {
     window.history.replaceState({}, document.title, window.location.pathname);
 }
 
-// Handle forgot password
+// Request 6-digit login code from staff (no automated email)
 async function handleForgotPassword(e) {
     e.preventDefault();
     const email = document.getElementById('forgotPasswordEmail').value;
+    const memberNoteEl = document.getElementById('forgotPasswordMemberNote');
+    const memberNote = memberNoteEl ? memberNoteEl.value : '';
     const errorDiv = document.getElementById('forgotPasswordError');
     const successDiv = document.getElementById('forgotPasswordSuccess');
 
@@ -6695,26 +7497,21 @@ async function handleForgotPassword(e) {
     successDiv.style.display = 'none';
 
     try {
-        const response = await fetch(`${API_BASE}/auth/forgot-password`, {
+        const response = await fetch(`${API_BASE}/auth/request-login-code-from-staff`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ email })
+            body: JSON.stringify({ email, member_note: memberNote || undefined })
         });
 
         const data = await response.json();
 
         if (response.ok) {
-            successDiv.textContent = data.message || 'If an account with that email exists, a password reset link has been sent.';
+            successDiv.textContent = data.message || 'Request submitted.';
             successDiv.style.display = 'block';
-            
-            // In development, show the reset URL if provided
-            if (data.resetUrl) {
-                successDiv.innerHTML += `<br><small>Reset URL: <a href="${data.resetUrl}" target="_blank">${data.resetUrl}</a></small>`;
-            }
         } else {
-            errorDiv.textContent = data.error || 'Failed to send reset link';
+            errorDiv.textContent = data.error || 'Failed to submit request';
             errorDiv.classList.add('show');
         }
     } catch (error) {
@@ -7613,6 +8410,33 @@ async function runPendingMigrationConfirm(pending) {
     if (btn) { btn.disabled = true; btn.textContent = 'Confirming...'; }
     try {
         const errorEl = document.getElementById('pendingAccountError');
+        const renderFriendlyPendingError = (title, details = []) => {
+            if (!errorEl) return false;
+            const hints = [];
+            const detailText = (details || []).join(' ').toLowerCase();
+            if (detailText.includes('phone')) hints.push('Phone: enter 10 digits (for example, 8015551212).');
+            if (detailText.includes('state')) hints.push('State: use 2 letters (for example, UT).');
+            if (detailText.includes('zip')) hints.push('ZIP: use 5 digits or ZIP+4.');
+            if (detailText.includes('gender')) hints.push('Gender: choose one option from the dropdown.');
+
+            const detailItemsHtml = (details || []).length
+                ? `<ul style="margin: 0.35rem 0 0 1rem; padding: 0;">${details.map((d) => `<li style="margin: 0.2rem 0;">${escapeHtml(String(d))}</li>`).join('')}</ul>`
+                : '';
+            const hintsHtml = hints.length
+                ? `<div style="margin-top: 0.55rem; padding-top: 0.45rem; border-top: 1px dashed #fecaca;">
+                    <div style="font-weight: 600; margin-bottom: 0.25rem;">Try this:</div>
+                    <ul style="margin: 0 0 0 1rem; padding: 0;">${hints.map((h) => `<li style="margin: 0.2rem 0;">${escapeHtml(h)}</li>`).join('')}</ul>
+                  </div>`
+                : '';
+
+            errorEl.innerHTML = `
+                <div style="font-weight: 700; margin-bottom: 0.2rem;">${escapeHtml(title || 'Please review your information')}</div>
+                ${detailItemsHtml}
+                ${hintsHtml}
+            `;
+            errorEl.style.display = 'block';
+            return true;
+        };
         if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
         const isImmediateFamilyPending = String(pending?.membership_type || '').toLowerCase() === 'immediate_family_member';
         const profileFirst = document.getElementById('pendingProfileFirstName')?.value?.trim() || '';
@@ -7683,31 +8507,63 @@ async function runPendingMigrationConfirm(pending) {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
             if (btn) { btn.disabled = false; btn.textContent = isImmediateFamilyPending ? 'Confirm Membership' : 'Confirm & Add Payment'; }
-            alert(data.error || 'Failed to confirm');
+            const details = Array.isArray(data.invalidFields)
+                ? data.invalidFields
+                : Array.isArray(data.missingFields)
+                    ? data.missingFields
+                    : [];
+            const title = data.error || 'Please fix the highlighted information';
+            if (!renderFriendlyPendingError(title, details)) {
+                const detailText = details.length ? ` ${details.join(' | ')}` : '';
+                const message = `${title}${detailText}`;
+                alert(message);
+            }
             return;
         }
         removePendingMigrationModal();
         await loadGymMembershipDetails();
+        const pendingHouseholdMembers = Array.isArray(pending?.household_members)
+            ? pending.household_members
+            : [];
+        const hasImmediateFamilyToConfirm = !isImmediateFamilyPending && pendingHouseholdMembers.length > 0;
+        const immediateFamilyFollowup = hasImmediateFamilyToConfirm
+            ? ' Next: each immediate family member also needs to log in and confirm their own member info.'
+            : '';
         if (data.membership_start_date) {
             const start = data.membership_start_date.toString().split('T')[0];
             const todayStr2 = new Date().toISOString().split('T')[0];
             if (isImmediateFamilyPending) {
                 showSuccess(data.message || 'Membership confirmed.');
             } else if (start === todayStr2) {
-                showSuccess('Membership confirmed. Add your payment method in the next step.');
+                showSuccess(`Membership confirmed. Add your payment method in the next step.${immediateFamilyFollowup}`);
             } else {
-                showSuccess(`You will not be charged until ${start}. Add your payment method in the next step.`);
+                showSuccess(`You will not be charged until ${start}. Add your payment method in the next step.${immediateFamilyFollowup}`);
             }
         } else {
-            showSuccess(data.message || (isImmediateFamilyPending ? 'Membership confirmed.' : 'Membership confirmed. Add your payment method next.'));
+            showSuccess(
+                data.message ||
+                (isImmediateFamilyPending
+                    ? 'Membership confirmed.'
+                    : `Membership confirmed. Add your payment method next.${immediateFamilyFollowup}`)
+            );
         }
         setTimeout(() => {
             const sc = document.querySelector('.subscription-card');
             if (sc) sc.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 300);
     } catch (e) {
-        if (btn) { btn.disabled = false; btn.textContent = 'Confirm & Add Payment'; }
-        alert(e.message || 'Request failed');
+        if (btn) { btn.disabled = false; btn.textContent = isImmediateFamilyPending ? 'Confirm Membership' : 'Confirm & Add Payment'; }
+        const errorEl = document.getElementById('pendingAccountError');
+        if (errorEl) {
+            errorEl.innerHTML = `
+                <div style="font-weight: 700; margin-bottom: 0.2rem;">Couldn’t verify your info right now</div>
+                <div>${escapeHtml(e.message || 'Request failed')}</div>
+                <div style="margin-top: 0.45rem;">Please try again. If it keeps happening, contact support and include this message.</div>
+            `;
+            errorEl.style.display = 'block';
+        } else {
+            alert(e.message || 'Request failed');
+        }
     }
 }
 
@@ -8145,6 +9001,31 @@ function renderGymMembershipDetails(membershipData) {
             }
         }
 
+        // Prefer server contract_end_date (calendar-month billing) when Stripe/contract API did not supply a date
+        if (nextBillingDate === 'N/A' && membership.contract_end_date && membership.membership_type !== 'free_trial') {
+            try {
+                let endStr = String(membership.contract_end_date).trim();
+                if (endStr.includes('T')) endStr = endStr.split('T')[0];
+                if (endStr.includes(' ')) endStr = endStr.split(' ')[0];
+                if (/^\d{4}-\d{2}-\d{2}$/.test(endStr)) {
+                    const [yy, mm, dd] = endStr.split('-').map(Number);
+                    const endDate = new Date(yy, mm - 1, dd);
+                    if (!isNaN(endDate.getTime())) {
+                        const todayCe = new Date();
+                        todayCe.setHours(0, 0, 0, 0);
+                        endDate.setHours(0, 0, 0, 0);
+                        periodEndDateForCompare = endDate;
+                        if (endDate < todayCe) {
+                            nextBillingLabel = 'Past Due Billing Date';
+                            nextBillingDate = formatDateMyAccount(endDate);
+                        } else if (!isPastDue) {
+                            nextBillingDate = formatDateMyAccount(endDate);
+                        }
+                    }
+                }
+            } catch (_) { /* ignore */ }
+        }
+
         // Fallback: calculate from contract_start_date when no Stripe data (skip for free trial)
         if (nextBillingDate === 'N/A' && membership.contract_start_date && membership.membership_type !== 'free_trial') {
             try {
@@ -8326,12 +9207,21 @@ function renderGymMembershipDetails(membershipData) {
         if (Number.isNaN(n)) return '$0.00';
         return '$' + n.toFixed(2);
     };
+    const isPlaceholderHouseholdEmail = (email) => {
+        const e = typeof email === 'string' ? email.trim().toLowerCase() : '';
+        return e.endsWith('@no-email.stoic-fit.local') || e.endsWith('@stoic-fit.local');
+    };
+    const NO_EMAIL_ADDED_LABEL = 'No email added';
     const displayMemberEmail = (email) => {
         const e = String(email || '').trim();
-        if (!e) return 'Missing email';
-        if (e.toLowerCase().endsWith('@stoic-fit.local')) return 'Missing email';
+        if (!e) return NO_EMAIL_ADDED_LABEL;
+        if (isPlaceholderHouseholdEmail(e)) return NO_EMAIL_ADDED_LABEL;
         return e;
     };
+    const memberDisplayName = (member) =>
+        member.name ||
+        (!isPlaceholderHouseholdEmail(member.email) && member.email ? member.email : '') ||
+        'Member';
     
     // Build all members list (primary first, then others)
     const allMembers = [];
@@ -8401,10 +9291,8 @@ function renderGymMembershipDetails(membershipData) {
     
     // Calculate total
     const total = allMembers.reduce((sum, member) => sum + (Number(member.price) || 0), 0);
-    const pendingEmailMembers = allMembers.filter((member) =>
-        !member.is_primary_member &&
-        typeof member.email === 'string' &&
-        member.email.toLowerCase().endsWith('@stoic-fit.local')
+    const pendingEmailMembers = allMembers.filter(
+        (member) => !member.is_primary_member && isPlaceholderHouseholdEmail(member.email)
     );
     
     // Format date (MMM DD, YYYY for My Account consistency)
@@ -8471,9 +9359,23 @@ function renderGymMembershipDetails(membershipData) {
     // NOT from contract_end_date (which might be wrong for old memberships)
     const calculateNextBillingDate = () => {
         const billingPeriod = membership.billing_period || 'monthly';
-        
-        // ALWAYS calculate from contract_start_date for monthly billing (30 days)
-        // Don't use contract_end_date as it might be wrong for old memberships
+
+        if (billingPeriod === 'monthly' && membership.contract_end_date) {
+            try {
+                let endStr = String(membership.contract_end_date).trim();
+                if (endStr.includes('T')) endStr = endStr.split('T')[0];
+                if (endStr.includes(' ')) endStr = endStr.split(' ')[0];
+                if (/^\d{4}-\d{2}-\d{2}$/.test(endStr)) {
+                    const [yy, mm, dd] = endStr.split('-').map(Number);
+                    const endDate = new Date(yy, mm - 1, dd);
+                    if (!isNaN(endDate.getTime())) return formatDateMyAccount(endDate);
+                }
+            } catch (e) {
+                console.error('Error parsing contract_end_date for next billing:', e);
+            }
+        }
+
+        // Legacy fallback: from contract_start_date (+30) when contract_end is missing
         if (membership.contract_start_date) {
             try {
                 let dateStr = String(membership.contract_start_date).trim();
@@ -8537,21 +9439,19 @@ function renderGymMembershipDetails(membershipData) {
             return `${formatDateMyAccount(stripePeriodStart)} - ${formatDateMyAccount(stripePeriodEnd)}`;
         }
         const billingPeriod = membership.billing_period || 'monthly';
-        
-        // Helper function to parse and format a date string
+
         const parseAndFormatDate = (dateStr) => {
             try {
                 let str = String(dateStr).trim();
-                // Handle timestamp formats
                 if (str.includes('T')) str = str.split('T')[0];
                 if (str.includes(' ')) str = str.split(' ')[0];
-                
+
                 const parts = str.split('-');
                 if (parts.length === 3) {
                     const year = parseInt(parts[0], 10);
                     const month = parseInt(parts[1], 10);
                     const day = parseInt(parts[2], 10);
-                    
+
                     if (!isNaN(year) && !isNaN(month) && !isNaN(day) && year > 0 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
                         const date = new Date(year, month - 1, day);
                         if (!isNaN(date.getTime())) {
@@ -8564,8 +9464,18 @@ function renderGymMembershipDetails(membershipData) {
             }
             return null;
         };
-        
-        // ALWAYS calculate from contract_start_date for monthly billing (30 days)
+
+        if (
+            billingPeriod === 'monthly' &&
+            membership.contract_start_date &&
+            membership.contract_end_date
+        ) {
+            const startF = parseAndFormatDate(membership.contract_start_date);
+            const endF = parseAndFormatDate(membership.contract_end_date);
+            if (startF && endF) return `${startF} - ${endF}`;
+        }
+
+        // Legacy: calculate from contract_start_date for monthly billing (+30 days)
         // Don't trust contract_end_date as it might be wrong for old memberships
         if (membership.contract_start_date) {
             try {
@@ -8644,12 +9554,14 @@ function renderGymMembershipDetails(membershipData) {
     allMembers.forEach(member => {
         const typeLabel = membershipTypeLabels[member.membership_type] || member.membership_type.replace(/_/g, ' ');
         const subscriptionTier = formatSubscriptionTier(member.subscription_tier);
+        const emailLine = displayMemberEmail(member.email);
+        const emailCell = escapeHtml(emailLine);
         membersTableRows += `
             <tr class="${member.is_primary_member ? 'primary-row' : ''}">
                 <td class="col-primary">${member.is_primary_member ? '<span class="primary-indicator">●</span>' : ''}</td>
                 <td class="col-member">
-                    <strong>${escapeHtml(member.name || member.email || 'Member')}</strong>
-                    <div class="member-email">${escapeHtml(displayMemberEmail(member.email))}</div>
+                    <strong>${escapeHtml(memberDisplayName(member))}</strong>
+                    <div class="member-email">${emailCell}</div>
                 </td>
                 <td class="col-type">${typeLabel}</td>
                 <td class="col-price">${formatUsd(member.price || 0)}</td>
@@ -8698,6 +9610,16 @@ function renderGymMembershipDetails(membershipData) {
         ((membership.pauses_used_this_contract ?? 0) < 1) &&
         !membership.pause_resume_scheduled;
     const contractPanelNextPaymentDue = nextBillingDate;
+    const contractTermRangeDisplay =
+      contract && (contract.term_start_date || contract.term_end_date)
+        ? `${escapeHtml(contractTermLine(contract.term_start_date))} to ${escapeHtml(contractTermLine(contract.term_end_date))}`
+        : '';
+    const nextPaymentDueDisplay =
+      contract && contract.next_payment_due_is_paid
+        ? 'Paid'
+        : contract && contract.next_payment_due_is_today
+          ? 'Today'
+          : escapeHtml(String(contractPanelNextPaymentDue || '—'));
     // Contract panel: public/styles.css applies a dark gradient on .gym-contract-term-panel — use light text colors in this template so copy stays readable on dark backgrounds.
     const contractCardHtml = !isFreeTrial && contract && (contract.term_start_date || contract.term_end_date)
       ? `
@@ -8706,18 +9628,14 @@ function renderGymMembershipDetails(membershipData) {
                     <h3 style="margin: 0; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.65);">Membership agreement</h3>
                     <span style="font-size: 0.75rem; font-weight: 600; color: #3f3f46; background: #fff; padding: 0.2rem 0.6rem; border-radius: 999px; border: 1px solid #d4d4d8;">${contract.term_months || 12}-month term</span>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem 1.25rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem 1.25rem;">
                     <div>
-                        <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255,255,255,0.55); margin-bottom: 0.35rem;">Term starts</div>
-                        <div style="font-size: 1rem; font-weight: 700; color: #ffffff;">${escapeHtml(contractTermLine(contract.term_start_date))}</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255,255,255,0.55); margin-bottom: 0.35rem;">Term ends</div>
-                        <div style="font-size: 1rem; font-weight: 700; color: #ffffff;">${escapeHtml(contractTermLine(contract.term_end_date))}</div>
+                        <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255,255,255,0.55); margin-bottom: 0.35rem;">Contract term</div>
+                        <div style="font-size: 1rem; font-weight: 700; color: #ffffff; line-height: 1.35;">${contractTermRangeDisplay}</div>
                     </div>
                     <div>
                         <div style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(255,255,255,0.55); margin-bottom: 0.35rem;">Next payment due</div>
-                        <div style="font-size: 1rem; font-weight: 700; color: #ffffff;">${escapeHtml(contractPanelNextPaymentDue)}</div>
+                        <div style="font-size: 1rem; font-weight: 700; color: #ffffff;">${nextPaymentDueDisplay}</div>
                     </div>
                 </div>
                 <p style="margin: 1rem 0 0 0; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.14); font-size: 0.8125rem; line-height: 1.55; color: rgba(255,255,255,0.88);">
@@ -8727,74 +9645,10 @@ function renderGymMembershipDetails(membershipData) {
       : '';
     const discountAmount = groupDiscount.hasDiscount ? Math.round(grandTotal * (groupDiscount.discountPercent / 100)) : 0;
     const finalTotal = grandTotal - discountAmount;
-    // Custom price discount (admin-set rate below type base): show breakdown in footer
-    // Show discount row whenever base_price > price (so we display correctly even if has_custom_price is missing)
-    const basePriceNum = membership.base_price != null ? Number(membership.base_price) : null;
-    const priceNum = membership.price != null ? Number(membership.price) : null;
-    const hasCustomPriceDiscount = (basePriceNum != null && priceNum != null && priceNum > 0 && priceNum < basePriceNum) || (membership.has_custom_price && basePriceNum != null && priceNum != null && priceNum < basePriceNum);
-    const customDiscountDollars = (basePriceNum != null && priceNum != null && priceNum < basePriceNum)
-        ? Math.round((basePriceNum - priceNum) * 100) / 100
-        : 0;
-    const memberBasePriceByType = {
-        standard: 65,
-        immediate_family_member: 50,
-        expecting_or_recovering_mother: 30,
-        entire_family: 185,
-        free_trial: 0
-    };
-    const memberLabelByType = {
-        standard: 'Standard Gym Membership',
-        immediate_family_member: 'Immediate Family Membership',
-        expecting_or_recovering_mother: 'Expecting or Recovering Mother Membership',
-        entire_family: 'Full Family Membership',
-        free_trial: 'Free Trial Membership'
-    };
     const accountDiscountPercent = groupDiscount.hasDiscount ? Number(groupDiscount.discountPercent || 0) : 0;
-    const primaryAccountMember = allMembers.find((m) => m.is_primary_member) || allMembers[0] || null;
-    const primaryBaseLabel = primaryAccountMember
-        ? (memberLabelByType[primaryAccountMember.membership_type] || 'Gym Membership')
-        : 'Gym Membership';
-    const primaryLineAmount = primaryAccountMember ? Number(primaryAccountMember.price || 0) : 0;
-    const primaryLineDiscount = primaryAccountMember
-        ? (accountDiscountPercent > 0
-            ? Math.round(primaryLineAmount * (accountDiscountPercent / 100) * 100) / 100
-            : (() => {
-                const memberBase = Number(primaryAccountMember.base_price != null
-                    ? primaryAccountMember.base_price
-                    : (memberBasePriceByType[primaryAccountMember.membership_type] || 0));
-                return memberBase > primaryLineAmount
-                    ? Math.round((memberBase - primaryLineAmount) * 100) / 100
-                    : 0;
-            })())
-        : 0;
-    const familyInvoiceLinesHtml = allMembers
-        .filter((m) => !m.is_primary_member)
-        .map((m) => {
-            const memberBase = Number(m.base_price != null ? m.base_price : (memberBasePriceByType[m.membership_type] || 0));
-            const memberPrice = Number(m.price || memberBase || 0);
-            const memberDiscount = accountDiscountPercent > 0
-                ? Math.round(memberPrice * (accountDiscountPercent / 100) * 100) / 100
-                : (memberBase > memberPrice ? Math.round((memberBase - memberPrice) * 100) / 100 : 0);
-            const memberLabel = memberLabelByType[m.membership_type] || 'Gym Membership';
-            const memberDiscountName = m.discount_name || membership.discount_name || 'Discount';
-            const isViewingMember = Number(m.id) === Number(user.id);
-            return `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                    <span style="font-size: 1rem; font-weight: 600; color: #111827;">${escapeHtml(memberLabel)}${isViewingMember ? ' (You)' : ''}</span>
-                    <span style="font-size: 1rem; font-weight: 600; color: #111827;">${formatUsd(memberPrice)}</span>
-                </div>
-                ${memberDiscount > 0 ? `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; color: #059669;">
-                    <span style="font-size: 0.875rem;">${accountDiscountPercent > 0 ? `Group Discount (${accountDiscountPercent}%)` : escapeHtml(memberDiscountName)}</span>
-                    <span style="font-size: 0.875rem; font-weight: 600;">-${formatUsd(memberDiscount)}</span>
-                </div>
-                ` : ''}
-            `;
-        })
-        .join('');
     const householdTotalMonthlyCharge = discountAmount > 0 ? finalTotal : grandTotal;
-    // Group discount when in a group but not qualified: 15% of current rate ($50 for Sharla)
-    const currentRateForGroupDiscount = priceNum != null ? priceNum : grandTotal;
+    // Preview when not qualified: same base as an applied group discount — % of total household monthly charge, not one line item
+    const currentRateForGroupDiscount = grandTotal;
     const groupPercent = groupDiscount.discountPercent != null ? Number(groupDiscount.discountPercent) : 15;
     const potentialGroupDiscountDollars = (groupInfo && !groupDiscount.hasDiscount && currentRateForGroupDiscount > 0) ? Math.round(currentRateForGroupDiscount * (groupPercent / 100) * 100) / 100 : 0;
     const requiredCount = groupDiscount.requiredCount != null ? Number(groupDiscount.requiredCount) : 5;
@@ -8804,9 +9658,91 @@ function renderGymMembershipDetails(membershipData) {
       ? (totalMembers != null && totalMembers < requiredCount)
         ? `Not applied: your group needs ${requiredCount}+ members to qualify for the group discount.`
         : (currentMembers != null && currentMembers < requiredCount)
-          ? `Not applied: there are not ${requiredCount} or more members that are current. Get current to qualify for the group discount.`
+          ? `Not applied: there are not ${requiredCount} or more members that are current. You're close - encourage your group members to get current so you can unlock the group discount.`
           : `Not applied: your group needs ${requiredCount}+ members to qualify for the group discount.`
       : '';
+    const bcs = membershipData.billing_charge_summary && typeof membershipData.billing_charge_summary === 'object'
+        ? membershipData.billing_charge_summary
+        : null;
+    const formatBillingYmdToDisplay = (ymd) => {
+        const raw = String(ymd || '').trim().split('T')[0].split(' ')[0];
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+        const [y, mo, d] = raw.split('-').map(Number);
+        return formatDateMyAccount(new Date(y, mo - 1, d));
+    };
+    const upcomingNextDateDisplay =
+        formatBillingYmdToDisplay(bcs && bcs.upcoming && bcs.upcoming.next_charge_display_ymd)
+        || nextBillingDate;
+    const pricingShiftNote = bcs && bcs.last_was_regular_rate_next_includes_group_discount
+        ? '<p class="invoice-charge-muted" style="margin:0 0 0.65rem 0;font-size:0.8125rem;line-height:1.45;">Your <strong>last</strong> payment was at the full household rate. Your <strong>next</strong> charge includes the group discount, so the amount is lower.</p>'
+        : '';
+    const upcomingSub = bcs && bcs.upcoming != null ? Number(bcs.upcoming.household_subtotal_dollars) : grandTotal;
+    const upcomingDisc = bcs && bcs.upcoming != null ? Number(bcs.upcoming.group_discount_dollars) : discountAmount;
+    const upcomingTotal = bcs && bcs.upcoming != null ? Number(bcs.upcoming.total_dollars) : householdTotalMonthlyCharge;
+    const upcomingGroupApplies = bcs && bcs.upcoming != null ? !!bcs.upcoming.group_discount_applies : !!groupDiscount.hasDiscount;
+    const thisPeriodRateLine = groupDiscount.hasDiscount
+        ? `<p style="margin: 0.35rem 0 0 0; font-size: 0.8125rem; color: #065f46; line-height: 1.45;">The <strong>group discount (${accountDiscountPercent}%)</strong> applies to your household total for this period (see breakdown below).</p>`
+        : (groupInfo
+            ? `<p style="margin: 0.35rem 0 0 0; font-size: 0.8125rem; color: #92400e; line-height: 1.45;">This billing period is charged at the <strong>regular household rate</strong>. The group discount is <strong>not applied</strong> until your group meets the requirements.</p>`
+            : `<p style="margin: 0.35rem 0 0 0; font-size: 0.8125rem; color: #374151; line-height: 1.45;">This billing period uses your <strong>regular household monthly rate</strong> (see line items below).</p>`);
+    const lastCharge = bcs && bcs.last_charge ? bcs.last_charge : null;
+    let lastChargeSection = '';
+    if (lastCharge && lastCharge.amount_dollars != null && !Number.isNaN(Number(lastCharge.amount_dollars))) {
+        const lcDate = formatDate(lastCharge.charged_at);
+        const subBcs = Number(bcs.household_subtotal_dollars);
+        const pctBcs = Number(bcs.group_discount_percent || 0);
+        const discBcs = Number(bcs.group_discount_dollars || 0);
+        let lines = '';
+        if (lastCharge.match === 'late_fee') {
+            lines = `<p class="invoice-charge-muted" style="margin:0 0 0.5rem 0;font-size:0.8125rem;line-height:1.5;">The most recent payment on file is a <strong>late fee or related charge</strong>, not a full monthly membership invoice.</p>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;"><span style="font-size:0.875rem;">Amount charged</span><span style="font-size:0.875rem;font-weight:600;">${formatUsd(lastCharge.amount_dollars)}</span></div>`;
+        } else if (lastCharge.match === 'discounted_total' && discBcs > 0) {
+            lines = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;"><span style="font-size:0.875rem;">Household subtotal</span><span style="font-size:0.875rem;font-weight:600;">${formatUsd(subBcs)}</span></div>
+                <div class="invoice-charge-discount" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;"><span style="font-size:0.875rem;">Group discount (${pctBcs}%)</span><span style="font-size:0.875rem;font-weight:600;">-${formatUsd(discBcs)}</span></div>
+                <div class="invoice-charge-divider" style="display:flex;justify-content:space-between;align-items:center;padding-top:0.5rem;margin-top:0.25rem;"><span style="font-size:0.875rem;font-weight:600;">Total charged</span><span style="font-size:0.875rem;font-weight:700;">${formatUsd(lastCharge.amount_dollars)}</span></div>`;
+        } else if (lastCharge.match === 'regular_subtotal') {
+            lines = `
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;"><span style="font-size:0.875rem;">Total paid</span><span style="font-size:0.875rem;font-weight:700;">${formatUsd(lastCharge.amount_dollars)}</span></div>
+                <p class="invoice-charge-muted" style="margin:0;font-size:0.8125rem;line-height:1.45;">Full household rate (no group discount on that payment).</p>`;
+        } else {
+            lines = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;"><span style="font-size:0.875rem;">Amount charged</span><span style="font-size:0.875rem;font-weight:600;">${formatUsd(lastCharge.amount_dollars)}</span></div>
+                <p class="invoice-charge-muted" style="margin:0.35rem 0 0;font-size:0.8125rem;line-height:1.45;">If this does not match the breakdown above, your household line-up or discounts may have changed since that payment.</p>`;
+        }
+        lastChargeSection = `
+                <div class="invoice-charge-card">
+                    <div class="invoice-charge-label">Last payment received</div>
+                    <p style="margin:0 0 0.75rem 0;font-size:0.8125rem;line-height:1.5;">Card charged on <strong>${escapeHtml(lcDate)}</strong></p>
+                    ${lines}
+                </div>`;
+    } else {
+        lastChargeSection = `
+                <div class="invoice-charge-card">
+                    <div class="invoice-charge-label">Last payment received</div>
+                    <p class="invoice-charge-muted" style="margin:0;font-size:0.8125rem;line-height:1.45;">No membership payment on file yet, or we could not load the last charge.</p>
+                </div>`;
+    }
+    const upcomingPaidNote = (contract && contract.next_payment_due_is_paid)
+        ? '<p class="invoice-charge-muted" style="margin:0 0 0.65rem 0;font-size:0.8125rem;line-height:1.45;">Your current due date is marked paid. The amount below is what we plan to charge on the next billing date.</p>'
+        : '';
+    const upcomingLines = (upcomingGroupApplies && upcomingDisc > 0)
+        ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;"><span style="font-size:0.875rem;">Household subtotal</span><span style="font-size:0.875rem;font-weight:600;">${formatUsd(upcomingSub)}</span></div>
+                <div class="invoice-charge-discount" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;"><span style="font-size:0.875rem;">Group discount (${accountDiscountPercent}%)</span><span style="font-size:0.875rem;font-weight:600;">-${formatUsd(upcomingDisc)}</span></div>
+                <div class="invoice-charge-divider" style="display:flex;justify-content:space-between;align-items:center;padding-top:0.5rem;margin-top:0.25rem;"><span style="font-size:0.875rem;font-weight:600;">Expected charge</span><span style="font-size:0.875rem;font-weight:700;">${formatUsd(upcomingTotal)}</span></div>`
+        : `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem;"><span style="font-size:0.875rem;">Household monthly rate</span><span style="font-size:0.875rem;font-weight:600;">${formatUsd(upcomingSub)}</span></div>
+                <p class="invoice-charge-muted" style="margin:0 0 0.5rem 0;font-size:0.8125rem;line-height:1.45;">${upcomingGroupApplies ? '' : 'No group discount applies for the upcoming charge; you pay the regular household total.'}</p>
+                <div class="invoice-charge-divider" style="display:flex;justify-content:space-between;align-items:center;padding-top:0.5rem;margin-top:0.25rem;"><span style="font-size:0.875rem;font-weight:600;">Expected charge</span><span style="font-size:0.875rem;font-weight:700;">${formatUsd(upcomingTotal)}</span></div>`;
+    const chargeSummaryBlock = `
+                <div class="invoice-charge-summary" style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid rgba(255,255,255,0.14);">
+                    ${lastChargeSection}
+                    <div class="invoice-charge-card">
+                        <div class="invoice-charge-label">Next automatic charge</div>
+                        <p style="margin:0 0 0.65rem 0;font-size:0.8125rem;line-height:1.5;"><strong>Scheduled for:</strong> ${escapeHtml(String(upcomingNextDateDisplay))}</p>
+                        ${pricingShiftNote}
+                        ${upcomingPaidNote}
+                        ${upcomingLines}
+                    </div>
+                </div>`;
     let html = `
         <div class="gym-membership-tabs-container">
             <div class="gym-tabs-scroll-wrap">
@@ -8856,8 +9792,8 @@ function renderGymMembershipDetails(membershipData) {
             <div class="invoice-header">
                 <div class="invoice-brand">
                     <p style="margin: 0.25rem 0; font-size: 0.875rem; color: #374151;"><strong>Invoice Billing Period:</strong> ${billingPeriodRange}</p>
-                    <p style="margin: 0.25rem 0; font-size: 0.875rem; color: #374151;"><strong>Next Billing Date:</strong> ${nextBillingDate}</p>
-                    <p style="margin: 0.25rem 0; font-size: 0.875rem; color: #374151;"><strong>Status:</strong> <span class="invoice-status ${displayStatus === 'past_due' || displayStatus === 'grace_period' ? 'status-inactive' : 'active'}" style="${displayStatus === 'past_due' || displayStatus === 'grace_period' ? 'background-color:#fee2e2 !important;color:#991b1b !important;border:1px solid #fecaca !important;' : 'background-color:#047857 !important;color:#ffffff !important;border:1px solid rgba(255,255,255,0.25) !important;'}">${displayStatus === 'past_due' || displayStatus === 'grace_period' ? 'Past Due' : 'Active'}</span></p>
+                    ${thisPeriodRateLine}
+                    <p style="margin: 0.5rem 0 0.25rem 0; font-size: 0.875rem; color: #374151;"><strong>Status:</strong> <span class="invoice-status ${displayStatus === 'past_due' || displayStatus === 'grace_period' ? 'status-inactive' : 'active'}" style="${displayStatus === 'past_due' || displayStatus === 'grace_period' ? 'background-color:#fee2e2 !important;color:#991b1b !important;border:1px solid #fecaca !important;' : 'background-color:#047857 !important;color:#ffffff !important;border:1px solid rgba(255,255,255,0.25) !important;'}">${displayStatus === 'past_due' || displayStatus === 'grace_period' ? 'Past Due' : 'Active'}</span></p>
                     ${!isPrimary ? `<p style="margin: 0.25rem 0; font-size: 0.8125rem; color: #6b7280;"><strong>Viewing as:</strong> ${escapeHtml(user.name || user.email || 'Member')} (Immediate Family Member)</p>` : ''}
                     ${showRecoverySwitchSection ? `
                     <p style="margin: 0.25rem 0; font-size: 0.875rem; color: #374151;">
@@ -8875,31 +9811,8 @@ function renderGymMembershipDetails(membershipData) {
                     ` : ''}
                 </div>
             </div>
-            <div class="invoice-footer" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px solid #e5e7eb;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                    <span style="font-size: 1rem; font-weight: 600; color: #111827;">${primaryBaseLabel}${primaryAccountMember && Number(user.id) === Number(primaryAccountMember.id) ? ' (You)' : ''}</span>
-                    <span style="font-size: 1rem; font-weight: 600; color: #111827;">${formatUsd(primaryLineAmount)}</span>
-                </div>
-                ${primaryLineDiscount > 0 ? `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; color: #059669;">
-                    <span style="font-size: 0.875rem;">${accountDiscountPercent > 0 ? `Group Discount (${accountDiscountPercent}%)` : escapeHtml((primaryAccountMember && primaryAccountMember.discount_name) || membership.discount_name || 'Discount')}</span>
-                    <span style="font-size: 0.875rem; font-weight: 600;">-${formatUsd(primaryLineDiscount)}</span>
-                </div>
-                ` : ''}
-                ${familyInvoiceLinesHtml}
-                ${(groupInfo && !groupDiscount.hasDiscount && potentialGroupDiscountDollars > 0) ? `
-                <div style="margin-bottom: 0.5rem; padding: 0.5rem 0.75rem; background: rgba(148, 163, 184, 0.12); border-radius: 6px; border: 1px solid rgba(148, 163, 184, 0.35);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
-                        <span style="font-size: 0.875rem; color: #fcd34d;">Group discount (${groupPercent}% of $${currentRateForGroupDiscount.toFixed(2)})</span>
-                        <span style="font-size: 0.875rem; font-weight: 600; color: #fcd34d;">-$${potentialGroupDiscountDollars.toFixed(2)}</span>
-                    </div>
-                    <p style="margin: 0; font-size: 0.8125rem; color: rgba(226, 232, 240, 0.92); line-height: 1.4;">${groupDiscountNotAppliedMessage}</p>
-                </div>
-                ` : ''}
-                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; margin-top: 0.5rem; border-top: 2px solid #e5e7eb;">
-                    <span style="font-size: 1.25rem; font-weight: 700; color: #111827;">Total Monthly Charge</span>
-                    <span style="font-size: 1.25rem; font-weight: 700; color: #111827;">${formatUsd(householdTotalMonthlyCharge)}</span>
-                </div>
+            <div class="invoice-footer" style="margin-top: 1.25rem; padding-top: 0;">
+                ${chargeSummaryBlock}
                 ${displayStatus === 'past_due' || displayStatus === 'grace_period' ? `
                 <div style="margin-top: 1rem; text-align: center;">
                     <button id="gymInvoicePayNowBtn" class="btn btn-primary" style="padding: 0.75rem 1.5rem; font-size: 1rem; font-weight: 600; cursor: pointer; background: #dc2626; border-color: #dc2626;">Pay Now</button>
@@ -9191,8 +10104,8 @@ function renderGymMembershipDetails(membershipData) {
                 return `
                     <tr class="${member.is_primary_member ? 'primary-row' : ''}">
                         <td class="col-member" style="padding: 0.25rem 0.375rem;">
-                            <strong style="font-size: 0.625rem;">${escapeHtml(member.name || member.email || 'Member')}</strong>
-                            <div class="member-email" style="font-size: 0.5625rem; color: #6b7280; margin-top: 0.125rem;">${escapeHtml(member.email || '')}</div>
+                            <strong style="font-size: 0.625rem;">${escapeHtml(memberDisplayName(member))}</strong>
+                            <div class="member-email" style="font-size: 0.5625rem; color: #6b7280; margin-top: 0.125rem;">${escapeHtml(displayMemberEmail(member.email))}</div>
                             ${member.is_primary_member ? '<span class="primary-label" style="display: inline-block; margin-top: 0.125rem; font-size: 0.5rem; padding: 0.125rem 0.25rem;">Primary Member</span>' : ''}
                         </td>
                         <td class="col-type" style="padding: 0.25rem 0.375rem; font-size: 0.625rem;">${typeLabel}</td>
@@ -9348,19 +10261,19 @@ function renderGymMembershipDetails(membershipData) {
             const paymentStatus = member.payment_status || 'current';
             const statusClass = paymentStatus === 'overdue' ? 'status-overdue' : (paymentStatus === 'pending_signup' ? 'status-pending' : 'status-current');
             const statusText = paymentStatus === 'overdue' ? 'Overdue' : (paymentStatus === 'pending_signup' ? 'Pending signup' : 'Current');
-            const statusColor = paymentStatus === 'overdue' ? '#ef4444' : (paymentStatus === 'pending_signup' ? '#b45309' : '#ffffff');
+            const statusColor = paymentStatus === 'overdue' ? '#ffffff' : (paymentStatus === 'pending_signup' ? '#ffffff' : '#ffffff');
             const isCurrentUser = member.is_current_user || (member.id === user.id);
             const rowClass = isCurrentUser ? 'current-user-row' : '';
             
                 return `
-                <tr class="${rowClass}" ${isCurrentUser ? 'style="background-color: #f0f9ff;"' : ''}>
+                <tr class="${rowClass}">
                     <td class="col-member-name">
                         <strong>${escapeHtml(member.name || 'Member')}</strong>
-                        ${isCurrentUser ? '<span style="font-size: 0.75rem; color: #3b82f6; margin-left: 0.5rem;">(You)</span>' : ''}
+                        ${isCurrentUser ? '<span title="Signed in user" style="display:inline-block;width:8px;height:8px;margin-left:0.5rem;border-radius:50%;background:#2563eb;vertical-align:middle;"></span>' : ''}
                     </td>
-                    <td class="col-member-email">${escapeHtml(member.email || '')}</td>
+                    <td class="col-member-email">${escapeHtml(displayMemberEmail(member.email))}</td>
                     <td class="col-payment-status">
-                        <span class="payment-status-badge ${statusClass}" style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600; background-color: ${paymentStatus === 'overdue' ? '#fee2e2' : (paymentStatus === 'pending_signup' ? '#fef3c7' : '#047857')}; color: ${statusColor};">
+                        <span class="payment-status-badge ${statusClass}" style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600; background-color: ${paymentStatus === 'overdue' ? '#b91c1c' : (paymentStatus === 'pending_signup' ? '#92400e' : '#047857')}; color: ${statusColor};">
                             ${statusText}
                         </span>
                     </td>
@@ -10591,7 +11504,20 @@ async function loadGymPaymentHistory() {
                 ` : ''}
                 ${payments.map(payment => {
                     const formattedDate = formatDateMyAccount(payment.date);
-                    const statusColor = payment.status === 'succeeded' ? '#6ee7b7' : payment.status === 'failed' ? '#fca5a5' : 'rgba(255,255,255,0.5)';
+                    const st = String(payment.status || 'succeeded').toLowerCase();
+                    const statusLabel = st === 'succeeded'
+                        ? 'Succeeded'
+                        : st === 'refunded'
+                            ? 'Refunded'
+                            : st === 'partially_refunded'
+                                ? 'Partially refunded'
+                                : st === 'failed'
+                                    ? 'Failed'
+                                    : st.replace(/_/g, ' ');
+                    let statusColor = 'rgba(255,255,255,0.5)';
+                    if (st === 'succeeded') statusColor = '#6ee7b7';
+                    else if (st === 'failed') statusColor = '#fca5a5';
+                    else if (st === 'refunded' || st === 'partially_refunded') statusColor = '#fcd34d';
                     const amountDisplay = `$${Number(payment.amount).toFixed(2)} ${(payment.currency || 'usd').toUpperCase()}`;
                     return `
                         <div class="gym-payment-history-row">
@@ -10601,7 +11527,7 @@ async function loadGymPaymentHistory() {
                             </div>
                             <div style="text-align: right;">
                                 <div class="gym-payment-history-row-amount">${amountDisplay}</div>
-                                <div class="gym-payment-history-row-status" style="color: ${statusColor};">${escapeHtml(payment.status)}</div>
+                                <div class="gym-payment-history-row-status" style="color: ${statusColor};">${escapeHtml(statusLabel)}</div>
                             </div>
                         </div>
                     `;
@@ -11742,6 +12668,11 @@ async function proceedWithUpgrade(targetTier) {
     modal.style.display = 'block';
     errorDiv.classList.remove('show');
     showLoading(true);
+    const submitBtn = document.getElementById('payButton');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Preparing payment...';
+    }
 
     try {
         console.log('Creating payment intent for upgrade tier:', targetTier);
@@ -11826,19 +12757,27 @@ async function proceedWithUpgrade(targetTier) {
             }
             
             // Set up payment button handler
-            const submitBtn = document.getElementById('payButton');
             if (submitBtn) {
                 submitBtn.textContent = 'Pay';
+                submitBtn.disabled = false;
                 submitBtn.onclick = handlePayment;
             }
         } else {
             errorDiv.textContent = data.error || 'Failed to create payment';
             errorDiv.classList.add('show');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Retry';
+            }
         }
     } catch (error) {
         console.error('Error creating payment intent:', error);
         errorDiv.textContent = 'Error: ' + error.message;
         errorDiv.classList.add('show');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Retry';
+        }
     } finally {
         showLoading(false);
     }
@@ -12038,6 +12977,11 @@ window.purchaseTier = async function(tier, isUpgrade = false) {
     modal.style.display = 'block';
     errorDiv.classList.remove('show');
     showLoading(true);
+    const submitBtn = document.getElementById('payButton');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Preparing payment...';
+    }
 
     try {
         console.log('Creating payment intent for tier:', tier, 'isUpgrade:', isUpgrade);
@@ -12121,14 +13065,26 @@ window.purchaseTier = async function(tier, isUpgrade = false) {
                 const paymentElement = stripeElements.create('payment');
                 paymentElement.mount('#paymentElement');
             }
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Pay';
+            }
         } else {
             errorDiv.textContent = data.error || 'Failed to create payment intent';
             errorDiv.classList.add('show');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Retry';
+            }
         }
     } catch (error) {
         console.error('Payment error:', error);
         errorDiv.textContent = `Network error: ${error.message}. Please check your connection and try again.`;
         errorDiv.classList.add('show');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Retry';
+        }
     } finally {
         showLoading(false);
     }
@@ -12138,8 +13094,18 @@ window.purchaseTier = async function(tier, isUpgrade = false) {
 async function handlePayment() {
     if (!stripe || !paymentIntent || !stripeElements) {
         const errorDiv = document.getElementById('paymentError');
-        errorDiv.textContent = 'Payment system not ready. Please try again.';
+        errorDiv.textContent = 'Payment session not ready yet. Click Retry to rebuild payment details.';
         errorDiv.classList.add('show');
+        const submitBtn = document.getElementById('payButton');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Retry';
+            submitBtn.onclick = async () => {
+                if (currentTier) {
+                    await window.purchaseTier(currentTier, currentIsUpgrade === true);
+                }
+            };
+        }
         return;
     }
 
